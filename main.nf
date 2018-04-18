@@ -98,7 +98,7 @@ process runDecon {
     """
     mv $left_trimmed $left_decon
     mv $right_trimmed $right_decon
-    mv $unpaired_trimmed $unpaired_decon
+    mv $unpaired $unpaired_decon
     grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
 
