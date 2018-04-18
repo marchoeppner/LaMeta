@@ -220,7 +220,7 @@ process runCoAssembly {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set group, set(id), file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
+  set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
 
   output:
   set group, file(outcontigs), file(megahitlog) into outCoAssembly
