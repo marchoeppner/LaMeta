@@ -145,10 +145,10 @@ process runSpades {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
+  set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup2
 
   output:
-  set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
+  set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly2
 
   script:
   outcontigs = group + ".final_contigs.fasta"
