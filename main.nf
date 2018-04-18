@@ -20,6 +20,8 @@ log.info "Starting at:		$workflow.start"
 OUTDIR=file(params.outdir)
 GROUP=file("groupfile.txt")
 
+TEMPLATEDIR=file(params.templatedir)
+
 TRIMMOMATIC = file(params.trimmomatic)
 TRIMMOMATIC_adapters = file(params.trimmomatic_adapters)
 TRIMMOMATIC_minlen = params.trimmomatic_minlen
@@ -119,7 +121,7 @@ process runCoAssembly {
   outcontigs = group + ".final_contigs.fasta"
   megahitlog = group + ".megahit.log"
 
-  template 'megahit_coassembly.sh'
+  template "$TEMPLATEDIR/megahit_coassembly.sh"
 
 
 
