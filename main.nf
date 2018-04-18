@@ -122,7 +122,7 @@ process runCoAssembly {
   megahitlog = group + ".megahit.log"
 
   template "$TEMPLATEDIR/megahit_coassembly.sh"
-
+}
 
 
 workflow.onComplete {
