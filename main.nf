@@ -124,7 +124,7 @@ process runCoAssembly {
   rrs=($right_decon)
   urs=($unpaired_decon)
 
-  for i in $(seq(1 echo ${#lrs[@]});
+  for i in \$(seq(1 echo ${#lrs[@]});
   do
   tmp="$inputstring -1 ${lrs[$i-1]} -2 ${rrs[$i-1]} -r ${urs[$i-1]}"
   inputstring=$tmp
