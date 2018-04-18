@@ -170,9 +170,9 @@ process runSpadesBackmap {
   """
   module load Java/1.8.0
   module load BBMap/37.88
-  module load Samtools
-  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outcontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
-  $SAMTOOLS view -u tmp_sam.gz | samtools sort -m 54G -@ 3 -o tmp_final.bam
+  module load Samtools/1.5
+  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outspadescontigscontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
   $JGISUM --outputDepth $outdepth tmp_final.bam
   rm tmp*
   """
