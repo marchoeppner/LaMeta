@@ -28,6 +28,7 @@ BBWRAP = file(params.bbmap)
 BBWRAP_decon_hsref = file(params.decon_hsref)
 BBWRAP_decon_phixref = file(params.decon_phixref)
 
+MEGAHIT=file(params.megahit)
 
 FOLDER=file(params.folder)
 
@@ -113,25 +114,12 @@ process runCoAssembly {
   set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
 
   output:
-  set file(out) into outCoAssembly
+  set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
 
-  out = group + ".final.fasta"
-  script:
+  outcontigs = group + ".final_contigs.fasta"
+  megahitlog = group + ".megahit.log"
 
-  """
-  inputstring=''
-  lrs=($left_decon)
-  rrs=($right_decon)
-  urs=($unpaired_decon)
-
-  for i in \$(seq(1 echo ${#lrs[@]});
-  do
-  tmp="$inputstring -1 ${lrs[$i-1]} -2 ${rrs[$i-1]} -r ${urs[$i-1]}"
-  inputstring=$tmp
-  done
-
-  echo $inputstring > out
-  """
+  template 'megahit_coassembly.sh'
 
 
 
