@@ -21,7 +21,7 @@ OUTDIR=file(params.outdir)
 
 TRIMMOMATIC = file(params.trimmomatic)
 TRIMMOMATIC_adapters = file(params.trimmomatic_adapters)
-TRIMMOMATIC_minlen = file(params.trimmomatic_minlen)
+TRIMMOMATIC_minlen = params.trimmomatic_minlen
 
 FOLDER=file(params.folder)
 
