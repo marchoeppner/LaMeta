@@ -114,7 +114,7 @@ process runDecon {
 
 }
 
-inputCoAssembly.groupBy().set { inputCoAssemblyByGroup }
+inputCoAssembly.groupTuple().set { inputCoAssemblyByGroup }
 
 process runCoAssembly {
   cpus 20
@@ -124,7 +124,7 @@ process runCoAssembly {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set group, allsets from inputCoAssemblyByGroup.collect()
+  set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
 
   output:
   set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
