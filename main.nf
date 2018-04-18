@@ -32,8 +32,6 @@ Channel
 
 process runTrim {
 
-  time = { 60.m * task.attempt }
-  memory = { 40.GB * task.attempt }
   cpus 20
 
   tag "${id}"
