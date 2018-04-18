@@ -61,6 +61,39 @@ process runTrim {
 
 }
 
+process runTrim {
+
+  cpus 20
+
+  tag "${id}"
+  publishDir "${OUTDIR}/Samples/${id}/Decon"
+
+  input:
+  set id, file(left_trimmed),file(right_trimmed),file(unpaired) from outputTrim
+
+  output:
+  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon
+
+  script:
+
+  tmp_left_phix = "tmp_" + id + "_R1.nophix.fastq.gz"
+  tmp_right_phix = "tmp_" + id + "_R2.nophix.fastq.gz"
+  tmp_unpaired_phix = "tmp_" + id + "_RU.nophix.fastq.gz"
+  left_decon = id + "_R1.decon.fastq.gz"
+  right_decon = id + "_R2.decon.fastq.gz"
+  unpaired_decon = id + "_RU.decon.fastq.gz"
+
+  """
+  module load Java/1.8.0
+  module load BBMap/37.88
+  bbwrap.sh minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${left_trimmed},${unpaired} in2=${left_trimmed},NULL path=/ifs/data/nfs_share/sukmb276/references/deconseq/PhiX/ outu1=${tmp_left_phix} outu2=${tmp_right_phix} outu=${tmp_unpaired_phix}
+  bbwrap.sh minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${tmp_left_phix},${tmp_unpaired_phix} in2=${tmp_right_phix},NULL path=/ifs/data/nfs_share/sukmb276/references/deconseq/hs_ref_GRCh38/ outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
+  rm tmp*
+  """
+
+}
+
+
 workflow.onComplete {
   log.info "========================================="
   log.info "Duration:		$workflow.duration"
