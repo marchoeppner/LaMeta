@@ -149,7 +149,7 @@ process runSpades {
 }
 
 outputSpades.into{inputSpadesBackmap; inputSpadesMetabat}
-inputSpadesBackmap.join(inputSpadesBackmap).set { inputSpadesBackmapWithContigs}
+inputSpadesBackmap.join(outputSpades).set { inputSpadesBackmapWithContigs}
 
 process runSpadesBackmap {
   cpus 5
