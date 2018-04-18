@@ -34,6 +34,8 @@ MEGAHIT=file(params.megahit)
 
 FOLDER=file(params.folder)
 
+mode = 'skipdecon'
+
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
   .ifEmpty { exit 1, "Could not find a matching input file" }
@@ -92,18 +94,27 @@ process runDecon {
   right_decon = id + "_R2.decon.fastq.gz"
   unpaired_decon = id + "_RU.decon.fastq.gz"
 
-  """
-  module load Java/1.8.0
-  module load BBMap/37.88
-  ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${left_trimmed},${unpaired} in2=${right_trimmed},NULL path=${BBWRAP_decon_phixref} outu1=${tmp_left_phix} outu2=${tmp_right_phix} outu=${tmp_unpaired_phix}
-  ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${tmp_left_phix},${tmp_unpaired_phix} in2=${tmp_right_phix},NULL path=${BBWRAP_decon_hsref} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
-  rm tmp*
-  grep $id $GROUP | cut -f 2 | tr -d '\n'
-  """
+  if( mode == 'skipdecon' )
+    """
+    mv left_trimmed left_decon
+    mv right_trimmed right_decon
+    mv unpaired_trimmed unpaired_decon
+    grep $id $GROUP | cut -f 2 | tr -d '\n'
+    """
+
+  else
+    """
+    module load Java/1.8.0
+    module load BBMap/37.88
+    ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${left_trimmed},${unpaired} in2=${right_trimmed},NULL path=${BBWRAP_decon_phixref} outu1=${tmp_left_phix} outu2=${tmp_right_phix} outu=${tmp_unpaired_phix}
+    ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${tmp_left_phix},${tmp_unpaired_phix} in2=${tmp_right_phix},NULL path=${BBWRAP_decon_hsref} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
+    rm tmp*
+    grep $id $GROUP | cut -f 2 | tr -d '\n'
+    """
 
 }
 
-inputCoAssembly.groupTuple().set { inputCoAssemblyByGroup }
+inputCoAssembly.groupBy().set { inputCoAssemblyByGroup }
 
 process runCoAssembly {
   cpus 20
@@ -113,7 +124,7 @@ process runCoAssembly {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
+  set group, allsets from inputCoAssemblyByGroup
 
   output:
   set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
@@ -125,6 +136,26 @@ process runCoAssembly {
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
+
+process runSpades {
+  cpus 20
+  memory 240.GB
+
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}"
+
+  input:
+  set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
+
+  output:
+  set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
+
+  script:
+  outcontigs = group + ".final_contigs.fasta"
+  megahitlog = group + ".megahit.log"
+
+  template "$TEMPLATEDIR/megahit_coassembly.sh"
+}
 
 workflow.onComplete {
   log.info "========================================="
