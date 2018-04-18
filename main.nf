@@ -52,7 +52,7 @@ process runTrim {
   unpaired = id + "_RU.trimmed.fastq.gz"
 
   """
-  java -jar $TRIMMOMATIC PE -threads ${cpus} -trimlog $s.trimlog.txt -phred33 ${left} ${right} ${left_trimmed} ${left_unpaired} ${right_trimmed} ${right_unpaired} ILLUMINACLIP:${TRIMMOMATIC_adapters}:1:50:30:1:true MINLEN:${TRIMMOMATIC_minlen} SLIDINGWINDOW:15:20
+  java -jar $TRIMMOMATIC PE -threads ${task.cpus} -trimlog $s.trimlog.txt -phred33 ${left} ${right} ${left_trimmed} ${left_unpaired} ${right_trimmed} ${right_unpaired} ILLUMINACLIP:${TRIMMOMATIC_adapters}:1:50:30:1:true MINLEN:${TRIMMOMATIC_minlen} SLIDINGWINDOW:15:20
   zcat ${left_unpaired} ${right_unpaired} > ${unpaired}
   rm ${left_unpaired} ${right_unpaired}
   """
