@@ -148,7 +148,7 @@ process runSpades {
   """
 }
 
-outputSpades.into(inputSpadesBackmap; inputSpadesMetabat)
+outputSpades.into{inputSpadesBackmap; inputSpadesMetabat}
 inputSpadesBackmap.join(outputSpadesBackmap).set { inputSpadesBackmapWithContigs}
 
 process runSpadesBackmap {
