@@ -180,7 +180,7 @@ process runSpadesBackmap {
 
 inputSpadesMetabat.join(outputSpadesBackmap).set { inputMetabat}
 
-process runSpadesBackmap {
+process runMetabat {
   cpus 5
   memory 60.GB
 
@@ -191,7 +191,7 @@ process runSpadesBackmap {
   set id, file(spadescontigs), file(depthfile) from inputMetabat
 
   output:
-  set id, file(outdepth) into outputSpadesBackmap
+  set id, file(binfolder), file(checkmout) into outputMetabatSamples
 
   script:
   binfolder = "metabat_bins"
