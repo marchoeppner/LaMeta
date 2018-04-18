@@ -32,7 +32,7 @@ Channel
 
 process runTrim {
 
-  cpus 20
+  cpus = 20
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Trim"
