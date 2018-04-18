@@ -18,6 +18,7 @@ log.info "========================================="
 log.info "Starting at:		$workflow.start"
 
 OUTDIR=file(params.outdir)
+GROUP=file("groupfile.txt")
 
 TRIMMOMATIC = file(params.trimmomatic)
 TRIMMOMATIC_adapters = file(params.trimmomatic_adapters)
@@ -78,7 +79,7 @@ process runDecon {
 
   output:
   set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon
-
+  set stdout,id,file(left_decon),file(right_decon),file(unpaired_decon) into inputCoAssembly
   script:
 
   tmp_left_phix = "tmp_" + id + "_R1.nophix.fastq.gz"
@@ -94,9 +95,44 @@ process runDecon {
   ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${left_trimmed},${unpaired} in2=${right_trimmed},NULL path=${BBWRAP_decon_phixref} outu1=${tmp_left_phix} outu2=${tmp_right_phix} outu=${tmp_unpaired_phix}
   ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${tmp_left_phix},${tmp_unpaired_phix} in2=${tmp_right_phix},NULL path=${BBWRAP_decon_hsref} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
   rm tmp*
+  grep $id $GROUP | cut -f 2 | tr -d '\n'
   """
 
 }
+
+inputCoAssembly.groupTuple().set { inputCoAssemblyByGroup }
+
+process runCoAssembly {
+  cpus 20
+  memory 240.GB
+
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}"
+
+  input:
+  set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
+
+  output:
+  set file(out) into outCoAssembly
+
+  out = group + ".final.fasta"
+  script:
+
+  """
+  inputstring=''
+  lrs=($left_decon)
+  rrs=($right_decon)
+  urs=($unpaired_decon)
+
+  for i in $(seq(1 echo ${#lrs[@]});
+  do
+  tmp="$inputstring -1 ${lrs[$i-1]} -2 ${rrs[$i-1]} -r ${urs[$i-1]}"
+  inputstring=$tmp
+  done
+
+  echo $inputstring > out
+  """
+
 
 
 workflow.onComplete {
