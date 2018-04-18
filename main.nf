@@ -118,6 +118,7 @@ process runCoAssembly {
   output:
   set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
 
+  script:
   outcontigs = group + ".final_contigs.fasta"
   megahitlog = group + ".megahit.log"
 
