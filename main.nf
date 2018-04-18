@@ -47,15 +47,15 @@ process runTrim {
 
   left_trimmed = id + "_R1.trimmed.fastq.gz"
   right_trimmed = id + "_R2.trimmed.fastq.gz"
-  left_unpaired = id + "_R1.unpaired.fastq.gz"
-  right_unpaired = id + "_R2.unpaired.fastq.gz"
+  left_unpaired = id + "_R1.unpaired.fastq"
+  right_unpaired = id + "_R2.unpaired.fastq"
   unpaired = id + "_RU.trimmed.fastq.gz"
   trimlog = id + ".trimlog.txt"
 
   """
   module load Java/1.8.0
   java -jar $TRIMMOMATIC PE -threads ${task.cpus} -trimlog ${trimlog} -phred33 ${left} ${right} ${left_trimmed} ${left_unpaired} ${right_trimmed} ${right_unpaired} ILLUMINACLIP:${TRIMMOMATIC_adapters}:1:50:30:1:true MINLEN:${TRIMMOMATIC_minlen} SLIDINGWINDOW:15:20
-  zcat ${left_unpaired} ${right_unpaired} > ${unpaired}
+  cat ${left_unpaired} ${right_unpaired} | gzip -c > ${unpaired}
   rm ${left_unpaired} ${right_unpaired}
   """
 
