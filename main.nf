@@ -35,6 +35,12 @@ MEGAHIT=file(params.megahit)
 SPADES=file(params.spades)
 SPADES_kmers=params.spades_kmers
 
+SAMTOOLS=file(params.samtools)
+
+JGISUM=file(params.jgisum)
+METABAT=file(params.metabat)
+CHECKM=file(params.checkm)
+
 FOLDER=file(params.folder)
 
 mode = 'skipdecon'
@@ -117,27 +123,90 @@ process runDecon {
 
 }
 
+outputDecon.into(inputSpades; inputSpadesBackmap)
+
 process runSpades {
   cpus 20
   memory 240.GB
 
-  tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}"
+  tag "${id}"
+  publishDir "${OUTDIR}/Samples/${id}/Spades"
 
   input:
-  set id, file(left_decon), file(right_decon), file(unpaired_decon) from outputDecon
+  set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputSpades
 
   output:
-  set id, file(left_decon), file(right_decon), file(unpaired_decon), file(outcontigs) into outputSpads
+  set id, file(outcontigs) into outputSpades
 
   script:
   outcontigs = id + ".spades_contigs.fasta"
 
   """
   module load Spades/3.9.0
-  $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o $outcontigs -t ${task.cpus}
+  $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o spades_out -t ${task.cpus}
+  mv spades_out/scaffolds.fasta $outcontigs
   """
 }
+
+outputSpades.into(inputSpadesBackmap; inputSpadesMetabat)
+inputSpadesBackmap.join(outputSpadesBackmap).set { inputSpadesBackmapWithContigs}
+
+process runSpadesBackmap {
+  cpus 5
+  memory 60.GB
+
+  tag "${id}"
+  publishDir "${OUTDIR}/Samples/${id}/Spades"
+
+  input:
+  set id, file(left_decon), file(right_decon), file(unpaired_decon), file(spadescontigs) from inputSpadesBackmapWithContigs
+
+  output:
+  set id, file(outdepth) into outputSpadesBackmap
+
+  script:
+  outdepth = id + ".depth.txt"
+
+  """
+  module load Java/1.8.0
+  module load BBMap/37.88
+  module load Samtools
+  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outcontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  $SAMTOOLS view -u tmp_sam.gz | samtools sort -m 54G -@ 3 -o tmp_final.bam
+  $JGISUM --outputDepth $outdepth tmp_final.bam
+  rm tmp*
+  """
+}
+
+inputSpadesMetabat.join(outputSpadesBackmap).set { inputMetabat}
+
+process runSpadesBackmap {
+  cpus 5
+  memory 60.GB
+
+  tag "${id}"
+  publishDir "${OUTDIR}/Samples/${id}/Metabat"
+
+  input:
+  set id, file(spadescontigs), file(depthfile) from inputMetabat
+
+  output:
+  set id, file(outdepth) into outputSpadesBackmap
+
+  script:
+  binfolder = "metabat_bins"
+  checkmout = "checkm_out"
+
+  """
+  $METABAT -i $spadescontigs -a $depthfile -o $binfolder/bin
+  module load Python/2.7.10
+  module load Prodigal/2.6.2
+  module load Pplacer/1.1
+  mkdir $checkmout
+  $CHECKM lineage_wf -f $checkmout/CheckM.txt -t 20 -x fa $binfolder/ $checkmout/SCG
+  """
+}
+
 
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapCoassembly }
 
@@ -151,7 +220,7 @@ process runCoAssembly {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
+  set group, set(id), file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
 
   output:
   set group, file(outcontigs), file(megahitlog) into outCoAssembly
