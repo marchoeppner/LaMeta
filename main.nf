@@ -136,7 +136,7 @@ process runCoAssembly {
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
-
+/*
 process runSpades {
   cpus 20
   memory 240.GB
@@ -156,6 +156,7 @@ process runSpades {
 
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
+*/
 
 workflow.onComplete {
   log.info "========================================="
