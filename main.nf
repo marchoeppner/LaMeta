@@ -148,8 +148,8 @@ process runSpades {
   """
 }
 
-outputSpades.into{inputSpadesBackmap; inputSpadesMetabat}
-inputSpadesBackmap.join(outputSpades).set { inputSpadesBackmapWithContigs}
+outputSpades.into{inputSpadesBackmapContigs; inputSpadesMetabat}
+inputSpadesBackmap.join(inputSpadesBackmapContigs).set { inputSpadesBackmapWithContigs}
 
 process runSpadesBackmap {
   cpus 5
