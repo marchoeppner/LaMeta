@@ -32,6 +32,9 @@ BBWRAP_decon_phixref = file(params.decon_phixref)
 
 MEGAHIT=file(params.megahit)
 
+SPADES=file(params.spades)
+SPADES_kmers=params.spades_kmers
+
 FOLDER=file(params.folder)
 
 mode = 'skipdecon'
@@ -114,7 +117,31 @@ process runDecon {
 
 }
 
-inputCoAssembly.groupTuple().set { inputCoAssemblyByGroup }
+process runSpades {
+  cpus 20
+  memory 240.GB
+
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}"
+
+  input:
+  set id, file(left_decon), file(right_decon), file(unpaired_decon) from outputDecon
+
+  output:
+  set id, file(left_decon), file(right_decon), file(unpaired_decon), file(outcontigs) into outputSpads
+
+  script:
+  outcontigs = id + ".spades_contigs.fasta"
+
+  """
+  module load Spades/3.9.0
+  $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o $outcontigs -t ${task.cpus}
+  """
+}
+
+inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapCoassembly }
+
+inputBackmapCoassembly.transpose() .set { inputBackmapCoassemblyT }
 
 process runCoAssembly {
   cpus 20
@@ -127,7 +154,7 @@ process runCoAssembly {
   set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
 
   output:
-  set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly
+  set group, file(outcontigs), file(megahitlog) into outCoAssembly
 
   script:
   outcontigs = group + ".final_contigs.fasta"
@@ -136,27 +163,7 @@ process runCoAssembly {
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
-/*
-process runSpades {
-  cpus 20
-  memory 240.GB
 
-  tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}"
-
-  input:
-  set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup2
-
-  output:
-  set group, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) into outCoAssembly2
-
-  script:
-  outcontigs = group + ".final_contigs.fasta"
-  megahitlog = group + ".megahit.log"
-
-  template "$TEMPLATEDIR/megahit_coassembly.sh"
-}
-*/
 
 workflow.onComplete {
   log.info "========================================="
