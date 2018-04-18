@@ -28,11 +28,11 @@ FOLDER=file(params.folder)
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
   .ifEmpty { exit 1, "Could not find a matching input file" }
-  .into { inputTrim }
+  .set { inputTrim }
 
 process runTrim {
 
-  cpus = 20
+  cpus 20
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Trim"
