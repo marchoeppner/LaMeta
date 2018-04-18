@@ -123,7 +123,7 @@ process runDecon {
 
 }
 
-outputDecon.into(inputSpades; inputSpadesBackmap)
+outputDecon.into{inputSpades; inputSpadesBackmap}
 
 process runSpades {
   cpus 20
