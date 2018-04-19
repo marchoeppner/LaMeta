@@ -255,9 +255,9 @@ process runCoAssembly {
 }
 
 
-outCoAssembly.into{ inputBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat }
+outCoAssembly.into{ inputContigsBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat }
 
-inputBackmapMegahit.transpose().combine(inputBackmapMegahit, by: 0) .set { inputBackmapCoassemblyT }
+inputContigsBackmapMegahit.transpose().combine(inputBackmapMegahit, by: 0) .set { inputBackmapCoassemblyT }
 
 process runCoassemblyBackmap {
 
