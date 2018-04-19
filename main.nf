@@ -272,7 +272,7 @@ output:
 set group, file(bamout) into outMegahitBackmap
 
 script:
-bamout = id + ".megahit.final.bam"
+bamout = group + ".megahit.final.bam"
 
 """
 module load Java/1.8.0
