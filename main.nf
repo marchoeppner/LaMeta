@@ -173,14 +173,12 @@ process runSpadesBackmap {
 
   script:
   outdepth = id + ".depth.txt"
-  /*
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outdepth $outdepth
   """
 
   else
-  */
   """
   module load Java/1.8.0
   module load BBMap/37.88
@@ -277,6 +275,12 @@ process runCoassemblyBackmap {
   script:
   bamout = id + ".megahit.final.bam"
 
+  if( mode == 'testmode' )
+  """
+  cp ${OUTDIR}/CoAssembly/${group}/$bamout $bamout
+  """
+
+  else
   """
   module load Java/1.8.0
   module load BBMap/37.88
