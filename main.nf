@@ -94,13 +94,13 @@ process runDecon {
   cpus 20
 
   tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Decon"
+  publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
 
   input:
   set id, file(left_trimmed),file(right_trimmed),file(unpaired) from outputTrim
 
   output:
-  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon, mode: 'copy'
+  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon
   set stdout,id,file(left_decon),file(right_decon),file(unpaired_decon) into inputCoAssembly
   script:
 
@@ -138,13 +138,13 @@ process runSpades {
   memory 240.GB
 
   tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Spades"
+  publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
 
   input:
   set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputSpades
 
   output:
-  set id, file(outcontigs) into outputSpades, mode: 'copy'
+  set id, file(outcontigs) into outputSpades
 
   script:
   outcontigs = id + ".spades_contigs.fasta"
