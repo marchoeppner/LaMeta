@@ -143,13 +143,14 @@ process runSpades {
 
   script:
   outcontigs = id + ".spades_contigs.fasta"
-
+  /*
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outcontigs $outcontigs
   """
 
   else
+  */
   """
   module load Spades/3.9.0
   $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o spades_out -t ${task.cpus}
@@ -173,14 +174,14 @@ process runSpadesBackmap {
 
   script:
   outdepth = id + ".depth.txt"
-
+  /*
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outdepth $outdepth
   """
 
   else
-
+  */
   """
   module load Java/1.8.0
   module load BBMap/37.88
@@ -210,7 +211,7 @@ process runMaxbin {
   script:
   binfolder = "maxbin_bins"
   checkmout = "checkm_out"
-
+  /*
   if( mode == 'testmode' )
   """
   cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
@@ -218,6 +219,7 @@ process runMaxbin {
   """
 
   else
+  */
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
@@ -252,6 +254,7 @@ process runCoAssembly {
   outcontigs = group + ".final_contigs.fasta"
   megahitlog = group + ".megahit.log"
 
+  /*
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
@@ -259,6 +262,7 @@ process runCoAssembly {
   """
 
   else
+  */
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
@@ -269,9 +273,6 @@ inputBackmapCoassembly.transpose().combine(outCoAssembly, by: 0) .set { inputBac
 
 /*
 process runCoassemblyBackmap {
-
-cpus 20
-memory 240.GB
 
 tag "${group}"
 publishDir "${OUTDIR}/CoAssembly/${group}"
