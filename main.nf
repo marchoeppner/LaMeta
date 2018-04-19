@@ -202,7 +202,7 @@ process runSpadesBackmap {
 
 inputSpadesMaxbin.join(outputSpadesBackmap).set { inputMaxbin}
 
-process runMetabat {
+process runMaxbin {
   cpus 5
   memory 60.GB
 
@@ -221,7 +221,8 @@ process runMetabat {
 
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
-  $MAXBIN -contig $spadescontigs -a maxbin.cov -o $binfolder/bin -thread ${task.cpus}
+  mkdir $binfolder
+  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/bin -thread ${task.cpus}
   module load Python/2.7.10
   module load Prodigal/2.6.2
   module load Pplacer/1.1
