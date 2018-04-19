@@ -311,7 +311,6 @@ cut -f  1,\$i $depthfile | tail -n+2 > $abufolder\${name}.out
 done
 
 """
-
 }
 
 coassemblyAbufolder.join(inputContigsMegahitMaxbin).set{ inputMegahitMaxbin }
