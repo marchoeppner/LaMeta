@@ -197,7 +197,7 @@ process runMaxbin {
   memory 60.GB
 
   tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Maxbin"
+  publishDir "${OUTDIR}/Samples/${id}/Maxbin", mode: 'copy'
 
   input:
   set id, file(spadescontigs), file(depthfile) from inputMaxbin
@@ -207,14 +207,12 @@ process runMaxbin {
 
   script:
   binfolder = "maxbin_bins"
-  /*
   if( mode == 'testmode' )
   """
   cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
   """
 
   else
-  */
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
@@ -232,7 +230,7 @@ process runCoAssembly {
   memory 240.GB
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
   set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
@@ -264,7 +262,7 @@ outtest.println()
 process runCoassemblyBackmap {
 
   tag "${group}-${id}"
-  publishDir "${OUTDIR}/CoAssembly/${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
   set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
@@ -299,7 +297,7 @@ process runCollapseBams {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set group, file(bams) from inputCollapseBams
+  set group, file(bams) from inputCollapseBams, mode: 'copy'
 
   output:
   set group, file(depthfile) into coassemblyDepth
@@ -309,13 +307,20 @@ process runCollapseBams {
   depthfile = group + "depth.txt"
   abufolder = group + "_abufiles"
 
+  if( mode == 'testmode' )
+  """
+  cp ${OUTDIR}/CoAssembly/${group}/$depthfile $depthfile
+  cp -r ${OUTDIR}/CoAssembly/${group}/$abufolder $abufolder
+  """
+
+  else
   """
   $JGISUM --outputDepth $depthfile $bams
-  ncol = \$(head -n 1 $depthfile | awk '{print NF}')
-
+  ncol=\$(head -n 1 $depthfile | awk '{print NF}')
+  mkdir $abufolder
   for i in \$(seq 4 2 \$ncol); do
   name=\$(head -n 1 $depthfile | cut -f \$i | cut -d "." -f 1)
-  cut -f  1,\$i $depthfile | tail -n+2 > $abufolder\${name}.out
+  cut -f  1,\$i $depthfile | tail -n+2 > $abufolder/\${name}.out
   done
   """
 }
