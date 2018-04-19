@@ -170,13 +170,13 @@ process runSpadesBackmap {
   memory 60.GB
 
   tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Spades"
+  publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
 
   input:
   set id, file(left_decon), file(right_decon), file(unpaired_decon), file(spadescontigs) from inputSpadesBackmapWithContigs
 
   output:
-  set id, file(outdepth) into outputSpadesBackmap, mode: 'copy'
+  set id, file(outdepth) into outputSpadesBackmap
 
   script:
   outdepth = id + ".depth.txt"
