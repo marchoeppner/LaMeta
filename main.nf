@@ -209,13 +209,14 @@ process runMaxbin {
 
   script:
   binfolder = "maxbin_bins"
-
+  /*
   if( mode == 'testmode' )
   """
   cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
   """
 
   else
+  */
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
@@ -264,56 +265,55 @@ outtest.println()
 
 process runCoassemblyBackmap {
 
-tag "${group}"
-publishDir "${OUTDIR}/CoAssembly/${group}"
+  tag "${group}-${id}"
+  publishDir "${OUTDIR}/CoAssembly/${group}"
 
-input:
-set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
+  input:
+  set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
 
-output:
-set group, file(bamout) into outMegahitBackmap
+  output:
+  set group, file(bamout) into outMegahitBackmap
 
-script:
-bamout = id + ".megahit.final.bam"
+  script:
+  bamout = id + ".megahit.final.bam"
 
-"""
-module load Java/1.8.0
-module load BBMap/37.88
-module load Samtools/1.5
-${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
-$SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
-rm tmp*
-"""
+  """
+  module load Java/1.8.0
+  module load BBMap/37.88
+  module load Samtools/1.5
+  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
+  rm tmp*
+  """
 }
 
 outMegahitBackmap.groupTuple().set { inputCollapseBams }
 
 process runCollapseBams {
 
-tag "${group}"
-publishDir "${OUTDIR}/CoAssembly/${group}"
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}"
 
-input:
-set group, file(bams) from inputCollapseBams
+  input:
+  set group, file(bams) from inputCollapseBams
 
-output:
-set group, file(depthfile) into coassemblyDepth
-set group, file(abufolder) into coassemblyAbufolder
+  output:
+  set group, file(depthfile) into coassemblyDepth
+  set group, file(abufolder) into coassemblyAbufolder
 
-script:
-depthfile = group + "depth.txt"
-abufolder = group + "_abufiles"
+  script:
+  depthfile = group + "depth.txt"
+  abufolder = group + "_abufiles"
 
-"""
-$JGISUM --outputDepth $depthfile $bams
-ncol = \$(head -n 1 $depthfile | awk '{print NF}')
+  """
+  $JGISUM --outputDepth $depthfile $bams
+  ncol = \$(head -n 1 $depthfile | awk '{print NF}')
 
-for i in \$(seq 4 2 \$ncol); do
-name=\$(head -n 1 $depthfile | cut -f \$i | cut -d "." -f 1)
-cut -f  1,\$i $depthfile | tail -n+2 > $abufolder\${name}.out
-done
-
-"""
+  for i in \$(seq 4 2 \$ncol); do
+  name=\$(head -n 1 $depthfile | cut -f \$i | cut -d "." -f 1)
+  cut -f  1,\$i $depthfile | tail -n+2 > $abufolder\${name}.out
+  done
+  """
 }
 
 coassemblyAbufolder.join(inputContigsMegahitMaxbin).set{ inputMegahitMaxbin }
