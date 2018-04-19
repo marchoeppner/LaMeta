@@ -40,6 +40,7 @@ SAMTOOLS=file(params.samtools)
 JGISUM=file(params.jgisum)
 METABAT=file(params.metabat)
 CHECKM=file(params.checkm)
+MAXBIN=file(params.maxbin)
 
 FOLDER=file(params.folder)
 
@@ -162,7 +163,7 @@ process runSpades {
   """
 }
 
-outputSpades.into{inputSpadesBackmapContigs; inputSpadesMetabat}
+outputSpades.into{inputSpadesBackmapContigs; inputSpadesMaxbin}
 inputSpadesBackmap.join(inputSpadesBackmapContigs).set { inputSpadesBackmapWithContigs}
 
 process runSpadesBackmap {
@@ -181,59 +182,57 @@ process runSpadesBackmap {
   script:
   outdepth = id + ".depth.txt"
 
-  /*
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outdepth $outdepth
   """
 
   else
-  */
-  
+
   """
   module load Java/1.8.0
   module load BBMap/37.88
   module load Samtools/1.5
-  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$spadescontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$spadescontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
   $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
   $JGISUM --outputDepth $outdepth tmp_final.bam
   rm tmp*
   """
 }
 
-inputSpadesMetabat.join(outputSpadesBackmap).set { inputMetabat}
+inputSpadesMaxbin.join(outputSpadesBackmap).set { inputMaxbin}
 
 process runMetabat {
   cpus 5
   memory 60.GB
 
   tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Metabat"
+  publishDir "${OUTDIR}/Samples/${id}/Maxbin"
 
   input:
-  set id, file(spadescontigs), file(depthfile) from inputMetabat
+  set id, file(spadescontigs), file(depthfile) from inputMaxbin
 
   output:
-  set id, file(binfolder), file(checkmout) into outputMetabatSamples
+  set id, file(binfolder), file(checkmout) into outputMaxbinSamples
 
   script:
-  binfolder = "metabat_bins"
+  binfolder = "maxbin_bins"
   checkmout = "checkm_out"
 
   """
-  $METABAT -i $spadescontigs -a $depthfile -o $binfolder/bin
+  tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
+  $MAXBIN -contig $spadescontigs -a maxbin.cov -o $binfolder/bin
   module load Python/2.7.10
   module load Prodigal/2.6.2
   module load Pplacer/1.1
   mkdir $checkmout
-  $CHECKM lineage_wf -f $checkmout/CheckM.txt -t 20 -x fa $binfolder/ $checkmout/SCG
+  $CHECKM lineage_wf -f $checkmout/CheckM.txt -t ${task.cpus} -x fasta $binfolder/ $checkmout/SCG
   """
 }
 
 
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapCoassembly }
 
-inputBackmapCoassembly.transpose() .set { inputBackmapCoassemblyT }
 
 process runCoAssembly {
   cpus 20
@@ -262,6 +261,11 @@ process runCoAssembly {
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
+
+
+
+inputBackmapCoassembly.transpose().combine(outCoAssembly, by: 0) .set { inputBackmapCoassemblyT }.prinfln()
+
 /*
 process runCoassemblyBackmap {
 
@@ -272,7 +276,7 @@ tag "${group}"
 publishDir "${OUTDIR}/CoAssembly/${group}"
 
 input:
-set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
+set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputBackmapCoassemblyT
 
 output:
 set group, file(outcontigs), file(megahitlog) into outCoAssembly
@@ -283,7 +287,7 @@ script:
 module load Java/1.8.0
 module load BBMap/37.88
 module load Samtools/1.5
-${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outspadescontigscontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outspadescontigscontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
 $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $id.final.bam
 rm tmp*
 """
