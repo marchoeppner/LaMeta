@@ -268,7 +268,7 @@ tag "${group}"
 publishDir "${OUTDIR}/CoAssembly/${group}"
 
 input:
-set group, id, file(megahitcontigs), file(megahitlog), file(left_decon), file(right_decon), file(unpaired_decon) from inputBackmapCoassemblyT
+set group, file(megahitcontigs), file(megahitlog), id, file(left_decon), file(right_decon), file(unpaired_decon) from inputBackmapCoassemblyT
 
 output:
 set group, file(bamout) into outMegahitBackmap
