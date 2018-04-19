@@ -53,8 +53,6 @@ Channel
 
 process runTrim {
 
-  cpus 20
-
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Trim"
 
@@ -91,8 +89,6 @@ process runTrim {
 }
 
 process runDecon {
-
-  cpus 20
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
@@ -135,8 +131,6 @@ process runDecon {
 outputDecon.into{inputSpades; inputSpadesBackmap}
 
 process runSpades {
-  cpus 20
-  memory 240.GB
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
@@ -167,8 +161,6 @@ outputSpades.into{inputSpadesBackmapContigs; inputSpadesMaxbin}
 inputSpadesBackmap.join(inputSpadesBackmapContigs).set { inputSpadesBackmapWithContigs}
 
 process runSpadesBackmap {
-  cpus 5
-  memory 60.GB
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
@@ -219,6 +211,13 @@ process runMaxbin {
   binfolder = "maxbin_bins"
   checkmout = "checkm_out"
 
+  if( mode == 'testmode' )
+  """
+  cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
+  cp -r ${OUTDIR}/Samples/${id}/Maxbin/$checkmout $checkmout
+  """
+
+  else
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
