@@ -43,7 +43,7 @@ CHECKM=file(params.checkm)
 
 FOLDER=file(params.folder)
 
-mode = 'skipdecon'
+mode = 'testmode'
 
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
@@ -72,6 +72,14 @@ process runTrim {
   unpaired = id + "_RU.trimmed.fastq.gz"
   trimlog = id + ".trimlog.txt"
 
+  if( mode == 'testmode' )
+  """
+  cp ${OUTDIR}/Samples/${id}/Trim/$left_trimmed $left_trimmed
+  cp ${OUTDIR}/Samples/${id}/Trim/$right_trimmed $right_trimmed
+  cp ${OUTDIR}/Samples/${id}/Trim/$unpaired $unpaired
+  """
+
+  else
   """
   module load Java/1.8.0
   java -jar $TRIMMOMATIC PE -threads ${task.cpus} -trimlog ${trimlog} -phred33 ${left} ${right} ${left_trimmed} ${left_unpaired} ${right_trimmed} ${right_unpaired} ILLUMINACLIP:${TRIMMOMATIC_adapters}:1:50:30:1:true MINLEN:${TRIMMOMATIC_minlen} SLIDINGWINDOW:15:20
@@ -92,7 +100,7 @@ process runDecon {
   set id, file(left_trimmed),file(right_trimmed),file(unpaired) from outputTrim
 
   output:
-  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon
+  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon, mode: 'copy'
   set stdout,id,file(left_decon),file(right_decon),file(unpaired_decon) into inputCoAssembly
   script:
 
@@ -103,7 +111,7 @@ process runDecon {
   right_decon = id + "_R2.decon.fastq.gz"
   unpaired_decon = id + "_RU.decon.fastq.gz"
 
-  if( mode == 'skipdecon' )
+  if( mode == 'testmode' )
     """
     mv $left_trimmed $left_decon
     mv $right_trimmed $right_decon
@@ -136,11 +144,17 @@ process runSpades {
   set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputSpades
 
   output:
-  set id, file(outcontigs) into outputSpades
+  set id, file(outcontigs) into outputSpades, mode: 'copy'
 
   script:
   outcontigs = id + ".spades_contigs.fasta"
 
+  if( mode == 'testmode' )
+  """
+  cp ${OUTDIR}/Samples/${id}/Spades/$outcontigs $outcontigs
+  """
+
+  else
   """
   module load Spades/3.9.0
   $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o spades_out -t ${task.cpus}
@@ -162,16 +176,22 @@ process runSpadesBackmap {
   set id, file(left_decon), file(right_decon), file(unpaired_decon), file(spadescontigs) from inputSpadesBackmapWithContigs
 
   output:
-  set id, file(outdepth) into outputSpadesBackmap
+  set id, file(outdepth) into outputSpadesBackmap, mode: 'copy'
 
   script:
   outdepth = id + ".depth.txt"
 
+  if( mode == 'testmode' )
+  """
+  cp ${OUTDIR}/Samples/${id}/Spades/$outdepth $outdepth
+  """
+
+  else
   """
   module load Java/1.8.0
   module load BBMap/37.88
   module load Samtools/1.5
-  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outspadescontigscontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$spadescontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
   $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
   $JGISUM --outputDepth $outdepth tmp_final.bam
   rm tmp*
@@ -220,7 +240,7 @@ process runCoAssembly {
   publishDir "${OUTDIR}/CoAssembly/${group}"
 
   input:
-  set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
+  set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
 
   output:
   set group, file(outcontigs), file(megahitlog) into outCoAssembly
@@ -229,10 +249,45 @@ process runCoAssembly {
   outcontigs = group + ".final_contigs.fasta"
   megahitlog = group + ".megahit.log"
 
+  if( mode == 'testmode' )
+  """
+  cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
+  cp ${OUTDIR}/CoAssembly/${group}/$megahitlog $megahitlog
+  """
+
+  else
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
+/*
+process runCoassemblyBackmap {
 
+cpus 20
+memory 240.GB
+
+tag "${group}"
+publishDir "${OUTDIR}/CoAssembly/${group}"
+
+input:
+set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputCoAssemblyByGroup
+
+output:
+set group, file(outcontigs), file(megahitlog) into outCoAssembly
+
+script:
+
+"""
+module load Java/1.8.0
+module load BBMap/37.88
+module load Samtools/1.5
+${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outspadescontigscontigs t=20 out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+$SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $id.final.bam
+rm tmp*
+"""
+
+
+}
+*/
 
 workflow.onComplete {
   log.info "========================================="
