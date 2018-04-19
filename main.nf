@@ -266,13 +266,13 @@ tag "${group}"
 publishDir "${OUTDIR}/CoAssembly/${group}"
 
 input:
-set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
+set group, id, file(megahitcontigs), file(megahitlog), file(left_decon), file(right_decon), file(unpaired_decon) from inputBackmapCoassemblyT
 
 output:
 set group, file(bamout) into outMegahitBackmap
 
 script:
-bamout = group + ".megahit.final.bam"
+bamout = id + ".megahit.final.bam"
 
 """
 module load Java/1.8.0
