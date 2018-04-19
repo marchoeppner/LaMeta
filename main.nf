@@ -294,10 +294,10 @@ outMegahitBackmap.groupTuple().set { inputCollapseBams }
 process runCollapseBams {
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
-  set group, file(bams) from inputCollapseBams, mode: 'copy'
+  set group, file(bams) from inputCollapseBams
 
   output:
   set group, file(depthfile) into coassemblyDepth
