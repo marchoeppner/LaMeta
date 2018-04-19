@@ -224,7 +224,7 @@ process runMaxbin {
 }
 
 
-inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapCoassembly }
+inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 
 
 process runCoAssembly {
