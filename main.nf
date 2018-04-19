@@ -258,7 +258,7 @@ process runCoAssembly {
 
 outCoAssembly.into{ inputContigsBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat }
 
-inputContigsBackmapMegahit.transpose().combine(inputBackmapMegahit, by: 0) .into {outtest; inputBackmapCoassemblyT }
+inputBackmapMegahit.transpose().combine(inputContigsBackmapMegahit, by: 0) .into {outtest; inputBackmapCoassemblyT }
 
 outtest.println()
 
@@ -268,7 +268,7 @@ tag "${group}"
 publishDir "${OUTDIR}/CoAssembly/${group}"
 
 input:
-set group, file(megahitcontigs), file(megahitlog), id, file(left_decon), file(right_decon), file(unpaired_decon) from inputBackmapCoassemblyT
+set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
 
 output:
 set group, file(bamout) into outMegahitBackmap
