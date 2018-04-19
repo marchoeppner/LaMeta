@@ -143,14 +143,13 @@ process runSpades {
 
   script:
   outcontigs = id + ".spades_contigs.fasta"
-  /*
+
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outcontigs $outcontigs
   """
 
   else
-  */
   """
   module load Spades/3.9.0
   $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o spades_out -t ${task.cpus}
@@ -174,14 +173,13 @@ process runSpadesBackmap {
 
   script:
   outdepth = id + ".depth.txt"
-  /*
+
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outdepth $outdepth
   """
 
   else
-  */
   """
   module load Java/1.8.0
   module load BBMap/37.88
@@ -206,30 +204,22 @@ process runMaxbin {
   set id, file(spadescontigs), file(depthfile) from inputMaxbin
 
   output:
-  set id, file(binfolder), file(checkmout) into outputMaxbinSamples
+  set id, file(binfolder) into outputMaxbinSamples
 
   script:
   binfolder = "maxbin_bins"
-  checkmout = "checkm_out"
-  /*
+
   if( mode == 'testmode' )
   """
   cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
-  cp -r ${OUTDIR}/Samples/${id}/Maxbin/$checkmout $checkmout
   """
 
   else
-  */
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
-  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/bin -thread ${task.cpus}
+  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin -thread ${task.cpus}
   mv $binfolder/bin.noclass $binfolder/bin.noclass.fasta
-  module load Python/2.7.10
-  module load Prodigal/2.6.2
-  module load Pplacer/1.1
-  mkdir $checkmout
-  $CHECKM lineage_wf -f $checkmout/CheckM.txt -t ${task.cpus} -x fasta $binfolder/ $checkmout/SCG
   """
 }
 
@@ -254,7 +244,6 @@ process runCoAssembly {
   outcontigs = group + ".final_contigs.fasta"
   megahitlog = group + ".megahit.log"
 
-  /*
   if( mode == 'testmode' )
   """
   cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
@@ -262,41 +251,120 @@ process runCoAssembly {
   """
 
   else
-  */
   template "$TEMPLATEDIR/megahit_coassembly.sh"
 }
 
 
+outCoAssembly.into{ inputBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat }
 
+inputBackmapMegahit.transpose().combine(outCoAssembly, by: 0) .set { inputBackmapCoassemblyT }
 
-inputBackmapCoassembly.transpose().combine(outCoAssembly, by: 0) .set { inputBackmapCoassemblyT }.println()
-
-/*
 process runCoassemblyBackmap {
 
 tag "${group}"
 publishDir "${OUTDIR}/CoAssembly/${group}"
 
 input:
-set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitlog) from inputBackmapCoassemblyT
+set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
 
 output:
-set group, file(outcontigs), file(megahitlog) into outCoAssembly
+set group, file(bamout) into outMegahitBackmap
 
 script:
+bamout = id + ".megahit.final.bam"
 
 """
 module load Java/1.8.0
 module load BBMap/37.88
 module load Samtools/1.5
-${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$outspadescontigscontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
-$SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $id.final.bam
+${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+$SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
 rm tmp*
 """
+}
 
+outMegahitBackmap.groupTuple().set { inputCollapseBams }
+
+process runCollapseBams {
+
+tag "${group}"
+publishDir "${OUTDIR}/CoAssembly/${group}"
+
+input:
+set group, file(bams) from inputCollapseBams
+
+output:
+set group, file(depthfile) into coassemblyDepth
+set group, file(abufolder) into coassemblyAbufolder
+
+script:
+depthfile = group + "depth.txt"
+abufolder = group + "_abufiles"
+
+"""
+$JGISUM --outputDepth $depthfile $bams
+ncol = \$(head -n 1 $depthfile | awk '{print NF}')
+
+for i in \$(seq 4 2 \$ncol); do
+name=\$(head -n 1 $depthfile | cut -f \$i | cut -d "." -f 1)
+cut -f  1,\$i $depthfile | tail -n+2 > $abufolder\${name}.out
+done
+
+"""
 
 }
-*/
+
+coassemblyAbufolder.join(inputContigsMegahitMaxbin).set{ inputMegahitMaxbin }
+
+process runMegahitMaxbin {
+  cpus 20
+  memory 240.GB
+
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin"
+
+  input:
+  set group, file(inputfolder), file(megahitcontigs) from inputMegahitMaxbin
+
+  output:
+  set id, file(binfolder) into outputMegahitMaxbin
+
+  script:
+  binfolder = "maxbin_bins"
+
+
+  """
+  ls ${inputfolder}/*.out > abufiles.txt
+  mkdir $binfolder
+  $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin -thread ${task.cpus}
+  mv $binfolder/bin.noclass $binfolder/bin.noclass.fasta
+  """
+}
+
+coassemblyDepth.join(inputContigsMegahitMetabat).set{ inputMegahitMetabat }
+
+process runMegahitMetabat {
+  cpus 20
+  memory 240.GB
+
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}/Metabat"
+
+  input:
+  set group, file(inputdepth), file(megahitcontigs) from inputMegahitMetabat
+
+  output:
+  set id, file(binfolder) into outputMegahitMetabat
+
+  script:
+  binfolder = "metabat_bins"
+
+
+  """
+  mkdir $binfolder
+  $METABAT -i $megahitcontigs -a $inputdepth -o $binfolder/${group}.metabat.bin -t ${task.cpus}
+  """
+}
 
 workflow.onComplete {
   log.info "========================================="
