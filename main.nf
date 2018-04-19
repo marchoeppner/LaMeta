@@ -223,6 +223,7 @@ process runMaxbin {
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
   $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/bin -thread ${task.cpus}
+  mv $binfolder/bin.noclass $binfolder/bin.noclass.fasta
   module load Python/2.7.10
   module load Prodigal/2.6.2
   module load Pplacer/1.1
