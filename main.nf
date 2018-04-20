@@ -386,7 +386,7 @@ process runDrep {
   cpus 20
   memory 240.GB
 
-  tag "allbins
+  tag "allbins"
   publishDir "${OUTDIR}/Final/dRep"
 
   input:
