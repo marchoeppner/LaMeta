@@ -378,9 +378,11 @@ process runMegahitMetabat {
   """
 }
 
+source = Channel.create()
+allbinfolders = Channel.create()
 
 outputMaxbinSamples.mix(outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
-allbinfoldersInput
+
 
 process runDrep {
   cpus 20
@@ -390,7 +392,7 @@ process runDrep {
   publishDir "${OUTDIR}/Final/dRep"
 
   input:
-  set file(binfolder) from allbinfoldersInput.collect()
+  set file(binfolder) from allbinfolders.collect()
 
   output:
   set file(binfolder) into outputDrep
