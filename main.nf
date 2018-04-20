@@ -337,7 +337,7 @@ process runMegahitMaxbin {
   set group, file(inputfolder), file(megahitcontigs) from inputMegahitMaxbin
 
   output:
-  set id, file(binfolder) into outputMegahitMaxbin
+  set group, file(binfolder) into outputMegahitMaxbin
 
   script:
   binfolder = "maxbin_bins"
@@ -364,7 +364,7 @@ process runMegahitMetabat {
   set group, file(inputdepth), file(megahitcontigs) from inputMegahitMetabat
 
   output:
-  set id, file(binfolder) into outputMegahitMetabat
+  set group, file(binfolder) into outputMegahitMetabat
 
   script:
   binfolder = "metabat_bins"
