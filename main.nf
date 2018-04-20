@@ -18,7 +18,7 @@ log.info "========================================="
 log.info "Starting at:		$workflow.start"
 
 OUTDIR=file(params.outdir)
-GROUP=file("groupfile.txt")
+GROUP=file(params.groupfile)
 
 TEMPLATEDIR=file(params.templatedir)
 
@@ -48,15 +48,20 @@ DREP=file(params.drep)
 
 FOLDER=file(params.folder)
 
-
-
 startfrom = params.startfrom
+
+/*
+Channel is created from the files in the input folder given by --folder.
+*/
 
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
   .ifEmpty { exit 1, "Could not find a matching input file" }
   .set { inputTrim }
 
+/*
+Adapter and sequence quality trimming is done with Trimmomatic.
+*/
 process runTrim {
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Trim"
@@ -92,6 +97,10 @@ process runTrim {
   """
 }
 
+/*
+Mapping agains PhiX and Host genome (defaul:human). Mapped reads/read-pairs (also discordantly)
+are discarded.
+*/
 process runDecon {
 
   tag "${id}"
@@ -131,8 +140,41 @@ process runDecon {
     """
 }
 
-outputDecon.into{inputSpades; inputSpadesBackmap}
+/*
+Co assembly within the groups given in groupfile.
+*/
+inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
+process runCoAssembly {
+  cpus 20
+  memory 240.GB
 
+  tag "${group}"
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
+
+  input:
+  set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
+
+  output:
+  set group, file(outcontigs), file(megahitlog) into outCoAssembly
+
+  script:
+  outcontigs = group + ".final_contigs.fasta"
+  megahitlog = group + ".megahit.log"
+
+  if( startfrom > 1 )
+  """
+  cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
+  cp ${OUTDIR}/CoAssembly/${group}/$megahitlog $megahitlog
+  """
+
+  else
+  template "$TEMPLATEDIR/megahit_coassembly.sh"
+}
+
+/*
+Single-samples metagenome assembly with spades
+*/
+outputDecon.into{inputSpades; inputSpadesBackmap}
 process runSpades {
 
   tag "${id}"
@@ -160,6 +202,10 @@ process runSpades {
   """
 }
 
+
+/*
+Backmapping to spades assembly and contig abundance estimation
+*/
 outputSpades.into{inputSpadesBackmapContigs; inputSpadesMaxbin}
 inputSpadesBackmap.join(inputSpadesBackmapContigs).set { inputSpadesBackmapWithContigs}
 
@@ -193,6 +239,9 @@ process runSpadesBackmap {
   """
 }
 
+/*
+Single-sample binning with Maxbin2
+*/
 inputSpadesMaxbin.join(outputSpadesBackmap).set { inputMaxbin}
 
 process runMaxbin {
@@ -224,42 +273,11 @@ process runMaxbin {
   """
 }
 
-
-inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
-
-
-process runCoAssembly {
-  cpus 20
-  memory 240.GB
-
-  tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
-
-  input:
-  set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
-
-  output:
-  set group, file(outcontigs), file(megahitlog) into outCoAssembly
-
-  script:
-  outcontigs = group + ".final_contigs.fasta"
-  megahitlog = group + ".megahit.log"
-
-  if( startfrom > 1 )
-  """
-  cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
-  cp ${OUTDIR}/CoAssembly/${group}/$megahitlog $megahitlog
-  """
-
-  else
-  template "$TEMPLATEDIR/megahit_coassembly.sh"
-}
-
-
+/*
+Backmapping to Megahit groupwise co-assembly
+*/
 outCoAssembly.into{ inputContigsBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat }
-
 inputBackmapMegahit.transpose().combine(inputContigsBackmapMegahit, by: 0) .set { inputBackmapCoassemblyT }
-
 
 process runCoassemblyBackmap {
 
@@ -291,8 +309,10 @@ process runCoassemblyBackmap {
   """
 }
 
+/*
+Contig abundance estimation for co-assemblies
+*/
 outMegahitBackmap.groupTuple().set { inputCollapseBams }
-
 process runCollapseBams {
 
   tag "${group}"
@@ -327,8 +347,11 @@ process runCollapseBams {
   """
 }
 
-coassemblyAbufolder.join(inputContigsMegahitMaxbin).set{ inputMegahitMaxbin }
 
+/*
+Co-assembly binning with Maxbin2
+*/
+coassemblyAbufolder.join(inputContigsMegahitMaxbin).set{ inputMegahitMaxbin }
 process runMegahitMaxbin {
   cpus 20
   memory 240.GB
@@ -359,8 +382,10 @@ process runMegahitMaxbin {
   """
 }
 
+/*
+Co-assembly binning with Metabat
+*/
 coassemblyDepth.join(inputContigsMegahitMetabat).set{ inputMegahitMetabat }
-
 process runMegahitMetabat {
   cpus 20
   memory 240.GB
@@ -390,16 +415,14 @@ process runMegahitMetabat {
   """
 }
 
+/*
+Dereplication of all bins from single-sample and groupwise co-assemblies
+*/
 source = Channel.create()
 allbinfolders = Channel.create()
-
 outputMaxbinSamples.mix(outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
-
 allbinfolders.collect().into { inputDrep; test }
 test.println()
-
-
-source.collect().println()
 
 process runDrep {
   cpus 20

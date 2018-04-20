@@ -40,10 +40,11 @@ The pipeline uses several parameters to fine-tune the various pipeline stages. S
  * [dRep (v.2.0.5)](https://github.com/MrOlm/drep)
  * [CheckM (v.1.0.11)](https://ecogenomics.github.io/CheckM/)
 
-Many of these tools have additional dependencies that are not listed here. If the tool works properly on it's own these are probably, these are likely satisfied. dRep and CheckM used different versions of Python2 and Python3. Please follow the instructions at the dRep website how to solve this issue using `pyenv`.
+Many of these tools have additional dependencies that are not listed here. If the tool works properly on its own, these are likely satisfied.
+
+`dRep` and `CheckM` used different versions of Python2 and Python3. Please follow the instructions at the dRep website how to solve this issue using `pyenv`.
 
  The version numbers are the software versions used in development/testing of the pipeline.
-
 
 ## Code structure
 
