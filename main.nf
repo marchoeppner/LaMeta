@@ -46,7 +46,9 @@ DREP=file(params.drep)
 
 FOLDER=file(params.folder)
 
-mode = 'testmode'
+
+
+startfrom = params.startfrom
 
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
@@ -73,7 +75,7 @@ process runTrim {
   unpaired = id + "_RU.trimmed.fastq.gz"
   trimlog = id + ".trimlog.txt"
 
-  if( mode == 'testmode' )
+  if( startfrom > 0 )
   """
   cp ${OUTDIR}/Samples/${id}/Trim/$left_trimmed $left_trimmed
   cp ${OUTDIR}/Samples/${id}/Trim/$right_trimmed $right_trimmed
@@ -110,7 +112,7 @@ process runDecon {
   right_decon = id + "_R2.decon.fastq.gz"
   unpaired_decon = id + "_RU.decon.fastq.gz"
 
-  if( mode == 'testmode' )
+  if( startfrom > 0 )
     """
     mv $left_trimmed $left_decon
     mv $right_trimmed $right_decon
@@ -146,7 +148,7 @@ process runSpades {
   script:
   outcontigs = id + ".spades_contigs.fasta"
 
-  if( mode == 'testmode' )
+  if( startfrom > 1 )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outcontigs $outcontigs
   """
@@ -175,7 +177,7 @@ process runSpadesBackmap {
 
   script:
   outdepth = id + ".depth.txt"
-  if( mode == 'testmode' )
+  if( startfrom > 2 )
   """
   cp ${OUTDIR}/Samples/${id}/Spades/$outdepth $outdepth
   """
@@ -209,14 +211,12 @@ process runMaxbin {
 
   script:
   binfolder = id + "_maxbin_bins"
-  /*
-  if( mode == 'testmode' )
+  if( startfrom > 2 )
   """
   cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
   """
 
   else
-  */
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
@@ -246,7 +246,7 @@ process runCoAssembly {
   outcontigs = group + ".final_contigs.fasta"
   megahitlog = group + ".megahit.log"
 
-  if( mode == 'testmode' )
+  if( startfrom > 1 )
   """
   cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
   cp ${OUTDIR}/CoAssembly/${group}/$megahitlog $megahitlog
@@ -276,7 +276,7 @@ process runCoassemblyBackmap {
   script:
   bamout = id + ".megahit.final.bam"
 
-  if( mode == 'testmode' )
+  if( startfrom > 2 )
   """
   cp ${OUTDIR}/CoAssembly/${group}/$bamout $bamout
   """
@@ -310,7 +310,7 @@ process runCollapseBams {
   depthfile = group + "depth.txt"
   abufolder = group + "_abufiles"
 
-  if( mode == 'testmode' )
+  if( startfrom > 2 )
   """
   cp ${OUTDIR}/CoAssembly/${group}/$depthfile $depthfile
   cp -r ${OUTDIR}/CoAssembly/${group}/$abufolder $abufolder
@@ -346,7 +346,12 @@ process runMegahitMaxbin {
   script:
   binfolder = group + "_maxbin_bins"
 
+  if( startfrom > 2 )
+  """
+  cp -r ${OUTDIR}/CoAssembly/${group}/Maxbin/$binfolder $binfolder
+  """
 
+  else
   """
   ls ${inputfolder}/*.out > abufiles.txt
   mkdir $binfolder
@@ -373,6 +378,12 @@ process runMegahitMetabat {
   script:
   binfolder = group + "_metabat_bins"
 
+  if( startfrom > 2 )
+  """
+  cp -r ${OUTDIR}/CoAssembly/${group}/Metabat/$binfolder $binfolder
+  """
+
+  else
 
   """
   mkdir $binfolder
@@ -396,7 +407,7 @@ process runDrep {
   memory 240.GB
 
   tag "allbins"
-  publishDir "${OUTDIR}/Final/dRep"
+  publishDir "${OUTDIR}/Final/dRep", mode: 'copy'
 
   input:
   file binfolder from inputDrep.collect()
