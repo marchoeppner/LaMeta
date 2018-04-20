@@ -29,7 +29,21 @@ The pipeline uses several parameters to fine-tune the various pipeline stages. S
 
 ## Reading the output
 
-## Tools and versions
+## Dependencies and versions
+ * [Trimmomatic (v.0.36)](http://www.usadellab.org/cms/index.php?page=trimmomatic)
+ * [BBMAP (v.37.88)](https://sourceforge.net/projects/bbmap/)
+ * [Megahit (v1.1.2)](https://github.com/voutcn/megahit)
+ * [Spades (v.3.9.0)](http://bioinf.spbau.ru/en/spades)
+ * [Samtools (v.1.5)](http://www.htslib.org)
+ * [Metabat2 (v.2.12.1)](https://bitbucket.org/berkeleylab/metabat/overview)
+ * [MaxBin2 (v.2.2.4)](https://downloads.jbei.org/data/microbial_communities/MaxBin/MaxBin.html)
+ * [dRep (v.2.0.5)](https://github.com/MrOlm/drep)
+ * [CheckM (v.1.0.11)](https://ecogenomics.github.io/CheckM/)
+
+Many of these tools have additional dependencies that are not listed here. If the tool works properly on it's own these are probably, these are likely satisfied. dRep and CheckM used different versions of Python2 and Python3. Please follow the instructions at the dRep website how to solve this issue using `pyenv`.
+
+ The version numbers are the software versions used in development/testing of the pipeline.
+
 
 ## Code structure
 

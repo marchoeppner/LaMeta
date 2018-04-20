@@ -42,6 +42,8 @@ METABAT=file(params.metabat)
 CHECKM=file(params.checkm)
 MAXBIN=file(params.maxbin)
 
+PYENV3=file(params.pyenv3)
+PYENV2=file(params.pyenv2)
 DREP=file(params.drep)
 
 FOLDER=file(params.folder)
@@ -56,7 +58,6 @@ Channel
   .set { inputTrim }
 
 process runTrim {
-
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Trim"
 
@@ -89,7 +90,6 @@ process runTrim {
   cat ${left_unpaired} ${right_unpaired} | gzip -c > ${unpaired}
   rm ${left_unpaired} ${right_unpaired}
   """
-
 }
 
 process runDecon {
@@ -129,7 +129,6 @@ process runDecon {
     rm tmp*
     grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
-
 }
 
 outputDecon.into{inputSpades; inputSpadesBackmap}
@@ -425,7 +424,7 @@ process runDrep {
   cp \$binf/*.fa* allbins
   done
 
-  pyenv local 3.5.1 2.7.10
+  pyenv local $PYENV3 $PYENV2
   $DREP bonus testDir --check_dependencies
   $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus}
   """
