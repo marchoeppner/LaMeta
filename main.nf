@@ -208,13 +208,15 @@ process runMaxbin {
   set id, file(binfolder) into outputMaxbinSamples
 
   script:
-  binfolder = "maxbin_bins"
+  binfolder = id + "_maxbin_bins"
+  /*
   if( mode == 'testmode' )
   """
   cp -r ${OUTDIR}/Samples/${id}/Maxbin/$binfolder $binfolder
   """
 
   else
+  */
   """
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
@@ -342,7 +344,7 @@ process runMegahitMaxbin {
   set group, file(binfolder) into outputMegahitMaxbin
 
   script:
-  binfolder = "maxbin_bins"
+  binfolder = group + "_maxbin_bins"
 
 
   """
@@ -369,7 +371,7 @@ process runMegahitMetabat {
   set group, file(binfolder) into outputMegahitMetabat
 
   script:
-  binfolder = "metabat_bins"
+  binfolder = group + "_metabat_bins"
 
 
   """
@@ -383,6 +385,11 @@ allbinfolders = Channel.create()
 
 outputMaxbinSamples.mix(outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
 
+allbinfolders.collect().into { inputDrep; test }
+test.println()
+
+
+source.collect().println()
 
 process runDrep {
   cpus 20
@@ -392,7 +399,7 @@ process runDrep {
   publishDir "${OUTDIR}/Final/dRep"
 
   input:
-  set file(binfolder) from allbinfolders.collect()
+  file binfolder from inputDrep.collect()
 
   output:
   set file(binfolder) into outputDrep
@@ -403,7 +410,7 @@ process runDrep {
 
   """
   mkdir allbins
-  for binf in ${binfolder}; do
+  for every binf in ${binfolder}; do
   cp \$binf/*.fa* allbins
   done
 
