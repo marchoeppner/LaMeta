@@ -402,7 +402,7 @@ process runDrep {
   file binfolder from inputDrep.collect()
 
   output:
-  set file(binfolder) into outputDrep
+  file outfolder into outputDrep
 
   script:
   outfolder = "dRep_out"
@@ -410,7 +410,7 @@ process runDrep {
 
   """
   mkdir allbins
-  for every binf in ${binfolder}; do
+  for binf in ${binfolder}; do
   cp \$binf/*.fa* allbins
   done
 
