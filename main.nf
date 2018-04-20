@@ -42,6 +42,8 @@ METABAT=file(params.metabat)
 CHECKM=file(params.checkm)
 MAXBIN=file(params.maxbin)
 
+DREP=file(params.drep)
+
 FOLDER=file(params.folder)
 
 mode = 'testmode'
@@ -217,7 +219,7 @@ process runMaxbin {
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
   $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin -thread ${task.cpus}
-  mv $binfolder/bin.noclass $binfolder/bin.noclass.fasta
+  mv $binfolder/${id}.bin.noclass $binfolder/${id}.bin.noclass.fasta
   """
 }
 
@@ -347,7 +349,7 @@ process runMegahitMaxbin {
   ls ${inputfolder}/*.out > abufiles.txt
   mkdir $binfolder
   $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin -thread ${task.cpus}
-  mv $binfolder/bin.noclass $binfolder/bin.noclass.fasta
+  mv $binfolder/${group}.maxbin.bin.noclass $binfolder/${group}.maxbin.bin.noclass.fasta
   """
 }
 
@@ -375,6 +377,40 @@ process runMegahitMetabat {
   $METABAT -i $megahitcontigs -a $inputdepth -o $binfolder/${group}.metabat.bin -t ${task.cpus}
   """
 }
+
+
+outputMaxbinSamples.mix(outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
+allbinfoldersInput
+
+process runDrep {
+  cpus 20
+  memory 240.GB
+
+  tag "allbins
+  publishDir "${OUTDIR}/Final/dRep"
+
+  input:
+  set file(binfolder) from allbinfoldersInput.collect()
+
+  output:
+  set file(binfolder) into outputDrep
+
+  script:
+  outfolder = "dRep_out"
+
+
+  """
+  mkdir allbins
+  for binf in ${binfolder}; do
+  cp \$binf/*.fa* allbins
+  done
+
+  pyenv local 3.5.1 2.7.10
+  $DREP bonus testDir --check_dependencies
+  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus}
+  """
+}
+
 
 workflow.onComplete {
   log.info "========================================="
