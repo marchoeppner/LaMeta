@@ -163,7 +163,7 @@ process runCoAssembly {
   awk '{printf " -1 " \$1 " -2 " \$2 " -r " \$3}' tmp1 > tmp
 
   $MEGAHIT \$(cat tmp | tr -d '\n') --num-cpu-threads ${task.cpus} --presets meta-large -o megahit_out --mem-flag 2 --verbose
-  mv megahit_out/final.contigs.fa $outcontigs
+  cat megahit_out/final.contigs.fa | cut -d ' ' -f 1 > $outcontigs
   mv megahit_out/log $megahitlog
   """
 }
