@@ -67,7 +67,7 @@ process runQC {
   publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
 
   input:
-  set id, file(left),file(right) from outputQC
+  set id, file(left),file(right) from inputQC
 
   output:
   set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputQC
