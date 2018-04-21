@@ -70,8 +70,8 @@ process runQC {
   set id, file(left),file(right) from inputQC
 
   output:
-  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputQC
-  set stdout,id,file(left_decon),file(right_decon),file(unpaired_decon) into inputCoAssembly
+  set id,file(left_clean),file(right_clean),file(unpaired_clean) into outputQC
+  set stdout,id,file(left_clean),file(right_clean),file(unpaired_clean) into inputCoAssembly
 
   script:
 
@@ -94,9 +94,9 @@ process runQC {
 
   if( startfrom > 0 )
     """
-    mv $left_trimmed $left_decon
-    mv $right_trimmed $right_decon
-    mv $unpaired $unpaired_decon
+    mv ${OUTDIR}/Samples/${id}/Decon/$left_clean $left_clean
+    mv ${OUTDIR}/Samples/${id}/Decon/$right_clean $right_clean
+    mv ${OUTDIR}/Samples/${id}/Decon/$unpaired_clean $unpaired_clean
     grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
   else
@@ -239,7 +239,7 @@ process runSpadesBackmap {
 /*
 Single-sample binning with Maxbin2
 */
-inputSpadesMaxbin.join(outputSpadesBackmap).set {inputMetabat; inputMaxbin}
+inputSpadesMaxbin.join(outputSpadesBackmap).into {inputMetabat; inputMaxbin}
 
 process runMaxbin {
 
