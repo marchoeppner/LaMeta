@@ -30,19 +30,20 @@ The pipeline uses several parameters to fine-tune the various pipeline stages. S
 ## Reading the output
 
 ## Dependencies and versions
- * [Trimmomatic (v.0.36)](http://www.usadellab.org/cms/index.php?page=trimmomatic)
- * [BBMAP (v.37.88)](https://sourceforge.net/projects/bbmap/)
- * [Megahit (v1.1.2)](https://github.com/voutcn/megahit)
- * [Spades (v.3.9.0)](http://bioinf.spbau.ru/en/spades)
- * [Samtools (v.1.5)](http://www.htslib.org)
- * [Metabat2 (v.2.12.1)](https://bitbucket.org/berkeleylab/metabat/overview)
- * [MaxBin2 (v.2.2.4)](https://downloads.jbei.org/data/microbial_communities/MaxBin/MaxBin.html)
- * [dRep (v.2.0.5)](https://github.com/MrOlm/drep)
- * [CheckM (v.1.0.11)](https://ecogenomics.github.io/CheckM/)
+ * [BBMap (v.37.88)](https://sourceforge.net/projects/bbmap/): QC, Mapping to contigs.
+ * [Megahit (v1.1.2)](https://github.com/voutcn/megahit): Groupwise Co-Assemblies.
+ * [Spades (v.3.9.0)](http://bioinf.spbau.ru/en/spades): Single-Sample Assemblies.
+ * [Samtools (v.1.5)](http://www.htslib.org): Conversion of SAM to BAM.
+ * [MaxBin2 (v.2.2.4)](https://downloads.jbei.org/data/microbial_communities/MaxBin/MaxBin.html): Binning of Contigs.
+ * [Metabat2 (v.2.12.1)](https://bitbucket.org/berkeleylab/metabat/overview): Binning of Contigs.
+ * [dRep (v.2.0.5)](https://github.com/MrOlm/drep): Evaluation of Binned Contigs.
+ * [CheckM (v.1.0.11)](https://ecogenomics.github.io/CheckM/): Used by dRep.
 
 Many of these tools have additional dependencies that are not listed here. If the tool works properly on its own, these are likely satisfied.
 
-`dRep` and `CheckM` used different versions of Python2 and Python3. Please follow the instructions at the dRep website how to solve this issue using `pyenv`.
+Toe remove human host/lab contamination the database has to be prepared as described [here](http://seqanswers.com/forums/showthread.php?t=42552).
+
+`dRep` and `CheckM` used different versions of Python2 and Python3. Please follow the [instructions](http://drep.readthedocs.io) provided on the dRep website to solve this issue using `pyenv`.
 
  The version numbers are the software versions used in development/testing of the pipeline.
 

@@ -4,7 +4,7 @@ LaMeta assembly and annotation pipeline by M. Rühlemann
 
 */
 
-VERSION = "0.1"
+VERSION = "0.2"
 
 logParams(params, "nextflow_parameters.txt")
 
@@ -20,15 +20,13 @@ log.info "Starting at:		$workflow.start"
 OUTDIR=file(params.outdir)
 GROUP=file(params.groupfile)
 
-TEMPLATEDIR=file(params.templatedir)
+READMINLEN = params.readminlen
 
-TRIMMOMATIC = file(params.trimmomatic)
-TRIMMOMATIC_adapters = file(params.trimmomatic_adapters)
-TRIMMOMATIC_minlen = params.trimmomatic_minlen
-
-BBWRAP = file(params.bbmap)
-BBWRAP_decon_hsref = file(params.decon_hsref)
-BBWRAP_decon_phixref = file(params.decon_phixref)
+BBWRAP = file(params.bbwrap)
+BBDUK = file(params.bbduk)
+BBMERGE = file(params.bbmerge)
+ADAPTERS = file(params.adapters)
+HSREF = file(params.hsref)
 
 MEGAHIT=file(params.megahit)
 
@@ -57,69 +55,42 @@ Channel is created from the files in the input folder given by --folder.
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
   .ifEmpty { exit 1, "Could not find a matching input file" }
-  .set { inputTrim }
-
-/*
-Adapter and sequence quality trimming is done with Trimmomatic.
-*/
-process runTrim {
-  tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Trim"
-
-  input:
-  set id, file(left),file(right) from inputTrim
-
-  output:
-  set id,file(left_trimmed),file(right_trimmed),file(unpaired) into outputTrim
-
-  script:
-
-  left_trimmed = id + "_R1.trimmed.fastq.gz"
-  right_trimmed = id + "_R2.trimmed.fastq.gz"
-  left_unpaired = id + "_R1.unpaired.fastq"
-  right_unpaired = id + "_R2.unpaired.fastq"
-  unpaired = id + "_RU.trimmed.fastq.gz"
-  trimlog = id + ".trimlog.txt"
-
-  if( startfrom > 0 )
-  """
-  cp ${OUTDIR}/Samples/${id}/Trim/$left_trimmed $left_trimmed
-  cp ${OUTDIR}/Samples/${id}/Trim/$right_trimmed $right_trimmed
-  cp ${OUTDIR}/Samples/${id}/Trim/$unpaired $unpaired
-  """
-
-  else
-  """
-  module load Java/1.8.0
-  java -jar $TRIMMOMATIC PE -threads ${task.cpus} -trimlog ${trimlog} -phred33 ${left} ${right} ${left_trimmed} ${left_unpaired} ${right_trimmed} ${right_unpaired} ILLUMINACLIP:${TRIMMOMATIC_adapters}:1:50:30:1:true MINLEN:${TRIMMOMATIC_minlen} SLIDINGWINDOW:15:20
-  cat ${left_unpaired} ${right_unpaired} | gzip -c > ${unpaired}
-  rm ${left_unpaired} ${right_unpaired}
-  """
-}
+  .set { inputQC }
 
 /*
 Mapping agains PhiX and Host genome (defaul:human). Mapped reads/read-pairs (also discordantly)
 are discarded.
 */
-process runDecon {
+process runQC {
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
 
   input:
-  set id, file(left_trimmed),file(right_trimmed),file(unpaired) from outputTrim
+  set id, file(left),file(right) from outputQC
 
   output:
-  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputDecon
+  set id,file(left_decon),file(right_decon),file(unpaired_decon) into outputQC
   set stdout,id,file(left_decon),file(right_decon),file(unpaired_decon) into inputCoAssembly
+
   script:
 
-  tmp_left_phix = "tmp_" + id + "_R1.nophix.fastq.gz"
-  tmp_right_phix = "tmp_" + id + "_R2.nophix.fastq.gz"
-  tmp_unpaired_phix = "tmp_" + id + "_RU.nophix.fastq.gz"
-  left_decon = id + "_R1.decon.fastq.gz"
-  right_decon = id + "_R2.decon.fastq.gz"
-  unpaired_decon = id + "_RU.decon.fastq.gz"
+  left_trimmed = "tmp_" + id + "_R1.trimmed.fastq.gz"
+  right_trimmed = "tmp_" + id + "_R2.trimmed.fastq.gz"
+  unpaired_trimmed = "tmp_" + id + "_RU.trimmed.fastq.gz"
+
+  left_nophix = "tmp_" + id + "_R1.nophix.fastq.gz"
+  right_nophix = "tmp_" + id + "_R2.nophix.fastq.gz"
+  unpaired_nophix = "tmp_" + id + "_RU.nophix.fastq.gz"
+
+  left_decon = "tmp_" + id + "_R1.decon.fastq.gz"
+  right_decon = "tmp_" + id + "_R2.decon.fastq.gz"
+  unpaired_decon = "tmp_" + id + "_RU.decon.fastq.gz"
+
+  merged = "tmp_" + id + "_RU.merged.fastq.gz"
+  left_clean = id + "_R1.clean.fastq.gz"
+  right_clean = id + "_R2.clean.fastq.gz"
+  unpaired_clean = id + "_RU.clean.fastq.gz"
 
   if( startfrom > 0 )
     """
@@ -128,13 +99,14 @@ process runDecon {
     mv $unpaired $unpaired_decon
     grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
-
   else
     """
-    module load Java/1.8.0
-    module load BBMap/37.88
-    ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${left_trimmed},${unpaired} in2=${right_trimmed},NULL path=${BBWRAP_decon_phixref} outu1=${tmp_left_phix} outu2=${tmp_right_phix} outu=${tmp_unpaired_phix}
-    ${BBWRAP} minratio=0.9 threads=${task.cpus} maxindel=3 bwr=0.16 bw=12 fast minhits=2 qtrim=r trimq=10 untrim idtag printunmappedcount kfilter=25 maxsites=1 k=14 in=${tmp_left_phix},${tmp_unpaired_phix} in2=${tmp_right_phix},NULL path=${BBWRAP_decon_hsref} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
+    ${BBDUK} threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
+    ${BBDUK} threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
+    ${BBDUK} threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
+    ${BBWRAP} -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
+    ${BBMERGE} threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN}
+    zcat ${merged} ${unpaired_nophix} | gzip -c > ${unpaired_clean}
     rm tmp*
     grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
@@ -145,14 +117,12 @@ Co assembly within the groups given in groupfile.
 */
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 process runCoAssembly {
-  cpus 20
-  memory 240.GB
 
   tag "${group}"
   publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
-  set group, id, file(left_decon), file(right_decon), file(unpaired_decon) from inputCoAssemblyByGroup
+  set group, id, file(left_clean), file(right_clean), file(unpaired_clean) from inputCoAssemblyByGroup
 
   output:
   set group, file(outcontigs), file(megahitlog) into outCoAssembly
@@ -168,20 +138,47 @@ process runCoAssembly {
   """
 
   else
-  template "$TEMPLATEDIR/megahit_coassembly.sh"
+  """
+  echo $left_clean > out
+  echo $right_clean >> out
+  echo $unpaired_clean >> out
+
+  awk '
+  {
+      for (i=1; i<=NF; i++)  {
+          a[NR,i] = \$i
+      }
+  }
+  NF>p { p = NF }
+  END {
+      for(j=1; j<=p; j++) {
+          str=a[1,j]
+          for(i=2; i<=NR; i++){
+              str=str" "a[i,j];
+          }
+          print str
+      }
+  }' out > tmp1
+
+  awk '{printf " -1 " \$1 " -2 " \$2 " -r " \$3}' tmp1 > tmp
+
+  $MEGAHIT \$(cat tmp | tr -d '\n') --num-cpu-threads ${task.cpus} --presets meta-large -o megahit_out --mem-flag 2 --verbose
+  mv megahit_out/final.contigs.fa $outcontigs
+  mv megahit_out/log $megahitlog
+  """
 }
 
 /*
 Single-samples metagenome assembly with spades
 */
-outputDecon.into{inputSpades; inputSpadesBackmap}
+outputQC.into{inputSpades; inputSpadesBackmap}
 process runSpades {
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
 
   input:
-  set id, file(left_decon), file(right_decon), file(unpaired_decon) from inputSpades
+  set id, file(left_clean), file(right_clean), file(unpaired_clean) from inputSpades
 
   output:
   set id, file(outcontigs) into outputSpades
@@ -197,7 +194,7 @@ process runSpades {
   else
   """
   module load Spades/3.9.0
-  $SPADES --meta --pe1-1 $left_decon --pe1-2 $right_decon --pe1-s $unpaired_decon -k $SPADES_kmers -o spades_out -t ${task.cpus}
+  $SPADES --meta --pe1-1 $left_clean --pe1-2 $right_clean --pe1-s $unpaired_clean -k $SPADES_kmers -o spades_out -t ${task.cpus}
   mv spades_out/scaffolds.fasta $outcontigs
   """
 }
@@ -215,7 +212,7 @@ process runSpadesBackmap {
   publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
 
   input:
-  set id, file(left_decon), file(right_decon), file(unpaired_decon), file(spadescontigs) from inputSpadesBackmapWithContigs
+  set id, file(left_clean), file(right_clean), file(unpaired_clean), file(spadescontigs) from inputSpadesBackmapWithContigs
 
   output:
   set id, file(outdepth) into outputSpadesBackmap
@@ -232,7 +229,7 @@ process runSpadesBackmap {
   module load Java/1.8.0
   module load BBMap/37.88
   module load Samtools/1.5
-  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$spadescontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  ${BBWRAP} -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$spadescontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
   $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
   $JGISUM --outputDepth $outdepth tmp_final.bam
   rm tmp*
@@ -242,11 +239,9 @@ process runSpadesBackmap {
 /*
 Single-sample binning with Maxbin2
 */
-inputSpadesMaxbin.join(outputSpadesBackmap).set { inputMaxbin}
+inputSpadesMaxbin.join(outputSpadesBackmap).set {inputMetabat; inputMaxbin}
 
 process runMaxbin {
-  cpus 5
-  memory 60.GB
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Maxbin", mode: 'copy'
@@ -273,6 +268,32 @@ process runMaxbin {
   """
 }
 
+process runMetabat {
+
+  tag "${id}"
+  publishDir "${OUTDIR}/Samples/${id}/Metabat", mode: 'copy'
+
+  input:
+  set id, file(spadescontigs), file(depthfile) from inputMetabat
+
+  output:
+  set id, file(binfolder) into outputMetabatSamples
+
+  script:
+  binfolder = id + "_metabat_bins"
+
+  if( startfrom > 2 )
+  """
+  cp -r ${OUTDIR}/Samples/${id}/Metabat/$binfolder $binfolder
+  """
+
+  else
+  """
+  mkdir $binfolder
+  $METABAT -i $spadescontigs -a $depthfile -o $binfolder/${id}.metabat.bin -t ${task.cpus}
+  """
+}
+
 /*
 Backmapping to Megahit groupwise co-assembly
 */
@@ -285,7 +306,7 @@ process runCoassemblyBackmap {
   publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
-  set group, id, file(left_decon), file(right_decon), file(unpaired_decon), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
+  set group, id, file(left_clean), file(right_clean), file(unpaired_clean), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
 
   output:
   set group, file(bamout) into outMegahitBackmap
@@ -303,7 +324,7 @@ process runCoassemblyBackmap {
   module load Java/1.8.0
   module load BBMap/37.88
   module load Samtools/1.5
-  ${BBWRAP} -Xmx60g in=$left_decon,$unpaired_decon in2=$right_decon,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
+  ${BBWRAP} -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
   $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
   rm tmp*
   """
@@ -347,7 +368,6 @@ process runCollapseBams {
   """
 }
 
-
 /*
 Co-assembly binning with Maxbin2
 */
@@ -357,7 +377,7 @@ process runMegahitMaxbin {
   memory 240.GB
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin"
+  publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin", mode: 'copy'
 
   input:
   set group, file(inputfolder), file(megahitcontigs) from inputMegahitMaxbin
@@ -387,11 +407,9 @@ Co-assembly binning with Metabat
 */
 coassemblyDepth.join(inputContigsMegahitMetabat).set{ inputMegahitMetabat }
 process runMegahitMetabat {
-  cpus 20
-  memory 240.GB
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/Metabat"
+  publishDir "${OUTDIR}/CoAssembly/${group}/Metabat", mode: 'copy'
 
   input:
   set group, file(inputdepth), file(megahitcontigs) from inputMegahitMetabat
@@ -420,13 +438,11 @@ Dereplication of all bins from single-sample and groupwise co-assemblies
 */
 source = Channel.create()
 allbinfolders = Channel.create()
-outputMaxbinSamples.mix(outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
+outputMaxbinSamples.mix(outputMetabatSamples,outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
 allbinfolders.collect().into { inputDrep; test }
 test.println()
 
 process runDrep {
-  cpus 20
-  memory 240.GB
 
   tag "allbins"
   publishDir "${OUTDIR}/Final/dRep", mode: 'copy'
