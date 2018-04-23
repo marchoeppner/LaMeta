@@ -40,8 +40,8 @@ METABAT=file(params.metabat)
 CHECKM=file(params.checkm)
 MAXBIN=file(params.maxbin)
 
-PYENV3=file(params.pyenv3)
-PYENV2=file(params.pyenv2)
+PYENV3=params.pyenv3
+PYENV2=params.pyenv2
 DREP=file(params.drep)
 
 FOLDER=file(params.folder)
@@ -55,7 +55,25 @@ Channel is created from the files in the input folder given by --folder.
 Channel
   .fromFilePairs(FOLDER + "/*_R{1,2}_001.fastq.gz", flat: true)
   .ifEmpty { exit 1, "Could not find a matching input file" }
-  .set { inputQC }
+  .into { inputQC; inputParseGroupPre }
+
+inputParseGroupPre.map{id, f1, f2 -> id}.set(inputParseGroup)
+
+process parseGroup {
+
+tag "${id}"
+
+input:
+val id from inputParseGroup
+
+output:
+set id, stdout into outputParseGroup
+
+script:
+"""
+grep $id $FILE | awk '{printf \$2}'
+"""
+}
 
 /*
 Mapping agains PhiX and Host genome (defaul:human). Mapped reads/read-pairs (also discordantly)
@@ -71,7 +89,6 @@ process runQC {
 
   output:
   set id,file(left_clean),file(right_clean),file(unpaired_clean) into outputQC
-  set stdout,id,file(left_clean),file(right_clean),file(unpaired_clean) into inputCoAssembly
 
   script:
 
@@ -97,7 +114,6 @@ process runQC {
     mv ${OUTDIR}/Samples/${id}/Decon/$left_clean $left_clean
     mv ${OUTDIR}/Samples/${id}/Decon/$right_clean $right_clean
     mv ${OUTDIR}/Samples/${id}/Decon/$unpaired_clean $unpaired_clean
-    grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
   else
     """
@@ -108,13 +124,15 @@ process runQC {
     ${BBMERGE} threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN}
     zcat ${merged} ${unpaired_nophix} | gzip -c > ${unpaired_clean}
     rm tmp*
-    grep $id $GROUP | cut -f 2 | tr -d '\n'
     """
 }
 
 /*
 Co assembly within the groups given in groupfile.
 */
+outputQC.into{inputSpades; inputSpadesBackmap; inputCoAssemblyPre}
+outputParseGroup.into{outputParseGroup1; outputParseGroup2; outputParseGroup3 }
+outputParseGroup1.join(inputCoAssemblyPre).map{id, group, left_clean, right_clean -> [group, id, left_clean, right_clean]}.set{inputCoAssembly}
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 process runCoAssembly {
 
@@ -171,7 +189,6 @@ process runCoAssembly {
 /*
 Single-samples metagenome assembly with spades
 */
-outputQC.into{inputSpades; inputSpadesBackmap}
 process runSpades {
 
   tag "${id}"
@@ -438,17 +455,48 @@ Dereplication of all bins from single-sample and groupwise co-assemblies
 */
 source = Channel.create()
 allbinfolders = Channel.create()
-outputMaxbinSamples.mix(outputMetabatSamples,outputMegahitMetabat,outputMegahitMaxbin).separate( source, allbinfolders )
-allbinfolders.collect().into { inputDrep; test }
-test.println()
 
-process runDrep {
+outputParseGroup2.join(outputMaxbinSamples).map{id, group, bin -> [group, bin]}.set{MaxbinSamplesGroups}
+outputParseGroup3.join(outputMetabatSamples).map{id, group, bin -> [group, bin]}.set{MetabatSamplesGroups}
+
+
+MaxbinSamplesGroups.mix(MetabatSamplesGroups,outputMegahitMetabat,outputMegahitMaxbin).groupTuple().set {groupbinfolder}
+
+process runDrepGroups {
+
+  tag "allbins"
+  publishDir "${OUTDIR}/CoAssembly/${group}/dRep", mode: 'copy'
+
+  input:
+  set group, file(binfolder) from groupbinfolder
+
+  output:
+  file outfolder into outputDrepGroup
+
+  script:
+  outfolder = group + "_dRep_out"
+
+
+  """
+  mkdir allbins
+  for binf in ${binfolder}; do
+  cp \$binf/*.fa* allbins
+  done
+
+  pyenv local $PYENV3 $PYENV2
+  $DREP bonus testDir --check_dependencies
+  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus}
+  """
+}
+
+
+process runDrepAll {
 
   tag "allbins"
   publishDir "${OUTDIR}/Final/dRep", mode: 'copy'
 
   input:
-  file binfolder from inputDrep.collect()
+  file binfolder from outputDrepGroup.collect()
 
   output:
   file outfolder into outputDrep
