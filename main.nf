@@ -37,8 +37,14 @@ SAMTOOLS=file(params.samtools)
 
 JGISUM=file(params.jgisum)
 METABAT=file(params.metabat)
+PRODIGAL=file(prams.prodigal)
+HMMSEARCH=file(params.hmmsearch)
+MARKERS107=file(params.markers107hmm)
+MARKERS40=file(params.markers40hmm)
+
 CHECKM=file(params.checkm)
 MAXBIN=file(params.maxbin)
+MINCOMP=params.mincomp
 
 PYENV3=params.pyenv3
 PYENV2=params.pyenv2
@@ -57,7 +63,7 @@ Channel
   .ifEmpty { exit 1, "Could not find a matching input file" }
   .into { inputQC; inputParseGroupPre }
 
-inputParseGroupPre.map{id, f1, f2 -> id}.set(inputParseGroup)
+inputParseGroupPre.map{id, f1, f2 -> id}.set{inputParseGroup}
 
 process parseGroup {
 
@@ -71,7 +77,7 @@ set id, stdout into outputParseGroup
 
 script:
 """
-grep $id $FILE | awk '{printf \$2}'
+grep $id $GROUP | awk '{printf \$2}'
 """
 }
 
@@ -111,9 +117,9 @@ process runQC {
 
   if( startfrom > 0 )
     """
-    mv ${OUTDIR}/Samples/${id}/Decon/$left_clean $left_clean
-    mv ${OUTDIR}/Samples/${id}/Decon/$right_clean $right_clean
-    mv ${OUTDIR}/Samples/${id}/Decon/$unpaired_clean $unpaired_clean
+    cp ${OUTDIR}/Samples/${id}/Decon/$left_clean $left_clean
+    cp ${OUTDIR}/Samples/${id}/Decon/$right_clean $right_clean
+    cp ${OUTDIR}/Samples/${id}/Decon/$unpaired_clean $unpaired_clean
     """
   else
     """
@@ -132,7 +138,9 @@ Co assembly within the groups given in groupfile.
 */
 outputQC.into{inputSpades; inputSpadesBackmap; inputCoAssemblyPre}
 outputParseGroup.into{outputParseGroup1; outputParseGroup2; outputParseGroup3 }
-outputParseGroup1.join(inputCoAssemblyPre).map{id, group, left_clean, right_clean -> [group, id, left_clean, right_clean]}.set{inputCoAssembly}
+
+outputParseGroup1.join(inputCoAssemblyPre).map{id, group, left_clean, right_clean, unpaired_clean -> [group, id, left_clean, right_clean, unpaired_clean]}.into{test1; inputCoAssembly}
+test1.println()
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 process runCoAssembly {
 
@@ -278,10 +286,28 @@ process runMaxbin {
 
   else
   """
+  module load Prokka/1.11
+
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
-  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin -thread ${task.cpus}
-  mv $binfolder/${id}.bin.noclass $binfolder/${id}.bin.noclass.fasta
+  mkdir workfolder
+  mkdir tmp_workfolder
+  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out workfolder/${id}.bin -thread ${task.cpus}
+
+  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/'' '{print \$NF}'); do
+  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar
+  done > summary.txt
+
+  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
+
   """
 }
 
@@ -306,8 +332,25 @@ process runMetabat {
 
   else
   """
+  module load Prokka/1.11
   mkdir $binfolder
-  $METABAT -i $spadescontigs -a $depthfile -o $binfolder/${id}.metabat.bin -t ${task.cpus}
+  mkdir workfolder
+  mkdir tmp_workfolder
+  $METABAT -i $spadescontigs -a $depthfile -o workfolder/${id}.metabat.bin -t ${task.cpus}
+
+  for bin in \$(ls workfolder/${id}.metabat.bin.*.fa | awk -F'/'' '{print \$NF}'); do
+  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar
+  done > summary.txt
+
+  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
   """
 }
 
@@ -412,10 +455,27 @@ process runMegahitMaxbin {
 
   else
   """
+  module load Prokka/1.11
+
   ls ${inputfolder}/*.out > abufiles.txt
   mkdir $binfolder
-  $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin -thread ${task.cpus}
-  mv $binfolder/${group}.maxbin.bin.noclass $binfolder/${group}.maxbin.bin.noclass.fasta
+  mkdir workfolder
+  mkdir tmp_workfolder
+  $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out workfolder/${group}.maxbin.bin -thread ${task.cpus}
+
+  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/'' '{print \$NF}'); do
+  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar
+  done > summary.txt
+
+  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
   """
 }
 
@@ -445,8 +505,26 @@ process runMegahitMetabat {
   else
 
   """
+  module load Prokka/1.11
+
   mkdir $binfolder
-  $METABAT -i $megahitcontigs -a $inputdepth -o $binfolder/${group}.metabat.bin -t ${task.cpus}
+  mkdir tmp_workfolder
+  mkdir workfolder
+  $METABAT -i $megahitcontigs -a $inputdepth -o workfolder/${group}.metabat.bin -t ${task.cpus}
+
+  for bin in \$(ls workfolder/${group}.metabat.bin.*.fa | awk -F'/'' '{print \$NF}'); do
+  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar
+  done > summary.txt
+
+  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
   """
 }
 
@@ -464,7 +542,7 @@ MaxbinSamplesGroups.mix(MetabatSamplesGroups,outputMegahitMetabat,outputMegahitM
 
 process runDrepGroups {
 
-  tag "allbins"
+  tag "${group}"
   publishDir "${OUTDIR}/CoAssembly/${group}/dRep", mode: 'copy'
 
   input:
@@ -485,7 +563,7 @@ process runDrepGroups {
 
   pyenv local $PYENV3 $PYENV2
   $DREP bonus testDir --check_dependencies
-  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus}
+  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
   """
 }
 
@@ -508,12 +586,12 @@ process runDrepAll {
   """
   mkdir allbins
   for binf in ${binfolder}; do
-  cp \$binf/*.fa* allbins
+  cp \$binf/dereplicated_genomes/*.fa* allbins
   done
 
   pyenv local $PYENV3 $PYENV2
   $DREP bonus testDir --check_dependencies
-  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus}
+  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
   """
 }
 
