@@ -37,10 +37,11 @@ SAMTOOLS=file(params.samtools)
 
 JGISUM=file(params.jgisum)
 METABAT=file(params.metabat)
-PRODIGAL=file(prams.prodigal)
+PRODIGAL=file(params.prodigal)
 HMMSEARCH=file(params.hmmsearch)
 MARKERS107=file(params.markers107hmm)
 MARKERS40=file(params.markers40hmm)
+PARALLEL=file(params.parallel)
 
 CHECKM=file(params.checkm)
 MAXBIN=file(params.maxbin)
@@ -294,16 +295,18 @@ process runMaxbin {
   mkdir tmp_workfolder
   $MAXBIN -contig $spadescontigs -abund maxbin.cov -out workfolder/${id}.bin -thread ${task.cpus}
 
-  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/'' '{print \$NF}'); do
-  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
-  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/ '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
   echo \$bin \$bac \$bacar
   done > summary.txt
 
-  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
@@ -338,16 +341,18 @@ process runMetabat {
   mkdir tmp_workfolder
   $METABAT -i $spadescontigs -a $depthfile -o workfolder/${id}.metabat.bin -t ${task.cpus}
 
-  for bin in \$(ls workfolder/${id}.metabat.bin.*.fa | awk -F'/'' '{print \$NF}'); do
-  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
-  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  for bin in \$(ls workfolder/${id}.metabat.bin.*.fa | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
   echo \$bin \$bac \$bacar
   done > summary.txt
 
-  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
@@ -463,16 +468,18 @@ process runMegahitMaxbin {
   mkdir tmp_workfolder
   $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out workfolder/${group}.maxbin.bin -thread ${task.cpus}
 
-  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/'' '{print \$NF}'); do
-  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
-  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  for bin in \$(ls workfolder/${group}.maxbin.*.fasta | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu ${task.cpus} $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu ${task.cpus} $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
   echo \$bin \$bac \$bacar
   done > summary.txt
 
-  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
@@ -512,16 +519,18 @@ process runMegahitMetabat {
   mkdir workfolder
   $METABAT -i $megahitcontigs -a $inputdepth -o workfolder/${group}.metabat.bin -t ${task.cpus}
 
-  for bin in \$(ls workfolder/${group}.metabat.bin.*.fa | awk -F'/'' '{print \$NF}'); do
-  $PRODIGAL -i workfolder/\$bin -a tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 ${MARKERS107} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 ${MARKERS40} tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
-  bac=$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
-  bacar=$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  for bin in \$(ls workfolder/${group}.metabat.bin.*.fa | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
   echo \$bin \$bac \$bacar
   done > summary.txt
 
-  for goodbin in \$(cat summary | awk '{if(\$2>40 | \$3>40) print \$1}'); do
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
