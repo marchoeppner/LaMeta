@@ -99,19 +99,19 @@ process runQC {
 
   script:
 
-  left_trimmed = "tmp_" + id + "_R1.trimmed.fastq.gz"
-  right_trimmed = "tmp_" + id + "_R2.trimmed.fastq.gz"
-  unpaired_trimmed = "tmp_" + id + "_RU.trimmed.fastq.gz"
+  left_trimmed = "tmp_" + id + "_R1.trimmed.fastq"
+  right_trimmed = "tmp_" + id + "_R2.trimmed.fastq"
+  unpaired_trimmed = "tmp_" + id + "_RU.trimmed.fastq"
 
-  left_nophix = "tmp_" + id + "_R1.nophix.fastq.gz"
-  right_nophix = "tmp_" + id + "_R2.nophix.fastq.gz"
-  unpaired_nophix = "tmp_" + id + "_RU.nophix.fastq.gz"
+  left_nophix = "tmp_" + id + "_R1.nophix.fastq"
+  right_nophix = "tmp_" + id + "_R2.nophix.fastq"
+  unpaired_nophix = "tmp_" + id + "_RU.nophix.fastq"
 
-  left_decon = "tmp_" + id + "_R1.decon.fastq.gz"
-  right_decon = "tmp_" + id + "_R2.decon.fastq.gz"
-  unpaired_decon = "tmp_" + id + "_RU.decon.fastq.gz"
+  left_decon = "tmp_" + id + "_R1.decon.fastq"
+  right_decon = "tmp_" + id + "_R2.decon.fastq"
+  unpaired_decon = "tmp_" + id + "_RU.decon.fastq"
 
-  merged = "tmp_" + id + "_RU.merged.fastq.gz"
+  merged = "tmp_" + id + "_RU.merged.fastq"
   left_clean = id + "_R1.clean.fastq.gz"
   right_clean = id + "_R2.clean.fastq.gz"
   unpaired_clean = id + "_RU.clean.fastq.gz"
@@ -129,7 +129,7 @@ process runQC {
     ${BBDUK} threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
     ${BBWRAP} -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
     ${BBMERGE} threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN}
-    zcat ${merged} ${unpaired_nophix} | gzip -c > ${unpaired_clean}
+    cat ${merged} ${unpaired_nophix} | gzip -c > ${unpaired_clean}
     rm tmp*
     """
 }
@@ -140,8 +140,7 @@ Co assembly within the groups given in groupfile.
 outputQC.into{inputSpades; inputSpadesBackmap; inputCoAssemblyPre}
 outputParseGroup.into{outputParseGroup1; outputParseGroup2; outputParseGroup3 }
 
-outputParseGroup1.join(inputCoAssemblyPre).map{id, group, left_clean, right_clean, unpaired_clean -> [group, id, left_clean, right_clean, unpaired_clean]}.into{test1; inputCoAssembly}
-test1.println()
+outputParseGroup1.join(inputCoAssemblyPre).map{id, group, left_clean, right_clean, unpaired_clean -> [group, id, left_clean, right_clean, unpaired_clean]}.set{inputCoAssembly}
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 process runCoAssembly {
 
@@ -192,6 +191,7 @@ process runCoAssembly {
   $MEGAHIT \$(cat tmp | tr -d '\n') --num-cpu-threads ${task.cpus} --presets meta-large -o megahit_out --mem-flag 2 --verbose
   cat megahit_out/final.contigs.fa | cut -d ' ' -f 1 > $outcontigs
   mv megahit_out/log $megahitlog
+  rm -r megahit_out
   """
 }
 
@@ -222,6 +222,7 @@ process runSpades {
   module load Spades/3.9.0
   $SPADES --meta --pe1-1 $left_clean --pe1-2 $right_clean --pe1-s $unpaired_clean -k $SPADES_kmers -o spades_out -t ${task.cpus}
   mv spades_out/scaffolds.fasta $outcontigs
+  rm -r spades_out
   """
 }
 
@@ -255,10 +256,11 @@ process runSpadesBackmap {
   module load Java/1.8.0
   module load BBMap/37.88
   module load Samtools/1.5
-  ${BBWRAP} -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$spadescontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
-  $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
+  ${BBWRAP} -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$spadescontigs t=${task.cpus} out=tmp.sam kfilter=22 subfilter=15 maxindel=80
+  $SAMTOOLS view -u tmp.sam | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
   $JGISUM --outputDepth $outdepth tmp_final.bam
   rm tmp*
+  rm -r ref
   """
 }
 
@@ -310,7 +312,8 @@ process runMaxbin {
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
-
+  rm -r workfolder
+  rm maxbin.cov
   """
 }
 
@@ -356,6 +359,7 @@ process runMetabat {
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
+  rm -r workfolder
   """
 }
 
@@ -381,7 +385,7 @@ process runCoassemblyBackmap {
 
   if( startfrom > 2 )
   """
-  cp ${OUTDIR}/CoAssembly/${group}/$bamout $bamout
+  cp ${OUTDIR}/CoAssembly/${group}/Backmap/$bamout $bamout
   """
 
   else
@@ -392,6 +396,7 @@ process runCoassemblyBackmap {
   ${BBWRAP} -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
   $SAMTOOLS view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
   rm tmp*
+  rm -r ref
   """
 }
 
@@ -402,7 +407,7 @@ outMegahitBackmap.groupTuple().set { inputCollapseBams }
 process runCollapseBams {
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
+  publishDir "${OUTDIR}/CoAssembly/${group}/Backmap", mode: 'copy'
 
   input:
   set group, file(bams) from inputCollapseBams
@@ -417,8 +422,8 @@ process runCollapseBams {
 
   if( startfrom > 2 )
   """
-  cp ${OUTDIR}/CoAssembly/${group}/$depthfile $depthfile
-  cp -r ${OUTDIR}/CoAssembly/${group}/$abufolder $abufolder
+  cp ${OUTDIR}/CoAssembly/${group}/Backmap/$depthfile $depthfile
+  cp -r ${OUTDIR}/CoAssembly/${group}/Backmap/$abufolder $abufolder
   """
 
   else
@@ -483,6 +488,7 @@ process runMegahitMaxbin {
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
+  rm -r workfolder
   """
 }
 
@@ -534,6 +540,7 @@ process runMegahitMetabat {
   cp workfolder/\$goodbin $binfolder
   done
   rm -r tmp_workfolder
+  rm -r workfolder
   """
 }
 
@@ -552,7 +559,7 @@ MaxbinSamplesGroups.mix(MetabatSamplesGroups,outputMegahitMetabat,outputMegahitM
 process runDrepGroups {
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/dRep", mode: 'copy'
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
   set group, file(binfolder) from groupbinfolder
@@ -573,6 +580,9 @@ process runDrepGroups {
   pyenv local $PYENV3 $PYENV2
   $DREP bonus testDir --check_dependencies
   $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
+  rm -r testDir
+  rm -r allbin
+  rm -r $outfolder/data
   """
 }
 
@@ -580,7 +590,7 @@ process runDrepGroups {
 process runDrepAll {
 
   tag "allbins"
-  publishDir "${OUTDIR}/Final/dRep", mode: 'copy'
+  publishDir "${OUTDIR}/Final", mode: 'copy'
 
   input:
   file binfolder from outputDrepGroup.collect()
@@ -601,6 +611,9 @@ process runDrepAll {
   pyenv local $PYENV3 $PYENV2
   $DREP bonus testDir --check_dependencies
   $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
+  rm -r testDir
+  rm -r allbin
+  rm -r $outfolder/data
   """
 }
 
