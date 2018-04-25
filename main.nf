@@ -297,7 +297,7 @@ process runMaxbin {
   mkdir tmp_workfolder
   $MAXBIN -contig $spadescontigs -abund maxbin.cov -out workfolder/${id}.bin -thread ${task.cpus}
 
-  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/ '{print \$NF}'); do
+  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/' '{print \$NF}'); do
   cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
   cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
   rm tmp_workfolder/\$bin.*.faa
@@ -613,7 +613,6 @@ process runDrepAll {
   $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
   rm -r testDir
   rm -r allbin
-  rm -r $outfolder/data
   """
 }
 
