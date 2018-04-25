@@ -124,10 +124,10 @@ process runQC {
     """
   else
     """
-    ${BBDUK} threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
-    ${BBDUK} threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
-    ${BBDUK} threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
-    ${BBWRAP} -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
+    ${BBDUK} threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo 2> tmp_adapt.out
+    ${BBDUK} threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN} 2> tmp_cont.out
+    ${BBDUK} threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN} 2> tmp_cont_u.out
+    ${BBWRAP} -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2> tmp_host.out
     ${BBMERGE} threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN}
     cat ${merged} ${unpaired_nophix} | gzip -c > ${unpaired_clean}
     rm tmp*
@@ -208,9 +208,11 @@ process runSpades {
 
   output:
   set id, file(outcontigs) into outputSpades
+  set id, file(outlog) into spadesLog
 
   script:
   outcontigs = id + ".spades_contigs.fasta"
+  outlog = id + ".spades.log"
 
   if( startfrom > 1 )
   """
@@ -222,6 +224,7 @@ process runSpades {
   module load Spades/3.9.0
   $SPADES --meta --pe1-1 $left_clean --pe1-2 $right_clean --pe1-s $unpaired_clean -k $SPADES_kmers -o spades_out -t ${task.cpus}
   mv spades_out/scaffolds.fasta $outcontigs
+  mv spades_out/spades.log $outlog
   rm -r spades_out
   """
 }
