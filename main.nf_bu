@@ -25,7 +25,6 @@ READMINLEN = params.readminlen
 BBWRAP = file(params.bbwrap)
 BBDUK = file(params.bbduk)
 BBMERGE = file(params.bbmerge)
-REFORMAT = file(params.reformat)
 ADAPTERS = file(params.adapters)
 HSREF = file(params.hsref)
 
@@ -48,15 +47,9 @@ CHECKM=file(params.checkm)
 MAXBIN=file(params.maxbin)
 MINCOMP=params.mincomp
 
-GTDBTK=file(params.gtdbtk)
-
-RSCRIPT=file(params.rscript)
-
 PYENV3=params.pyenv3
 PYENV2=params.pyenv2
 DREP=file(params.drep)
-
-PYTHON=params.python
 
 FOLDER=file(params.folder)
 
@@ -90,12 +83,10 @@ grep $id $GROUP | awk '{printf \$2}'
 }
 
 /*
-Mapping against PhiX and Host genome (default:human). Mapped reads/read-pairs (also discordantly)
+Mapping agains PhiX and Host genome (defaul:human). Mapped reads/read-pairs (also discordantly)
 are discarded.
 */
 process runQC {
-
-  scratch true
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
@@ -105,7 +96,6 @@ process runQC {
 
   output:
   set id,file(left_clean),file(right_clean),file(unpaired_clean) into outputQC
-  set id,file(finalstats) into outputQCstats
 
   script:
 
@@ -126,36 +116,21 @@ process runQC {
   right_clean = id + "_R2.clean.fastq.gz"
   unpaired_clean = id + "_RU.clean.fastq.gz"
 
-  finalstats = id +".stats.txt"
-
   if( startfrom > 0 )
     """
     cp ${OUTDIR}/Samples/${id}/Decon/$left_clean $left_clean
     cp ${OUTDIR}/Samples/${id}/Decon/$right_clean $right_clean
     cp ${OUTDIR}/Samples/${id}/Decon/$unpaired_clean $unpaired_clean
-    touch $finalstats
     """
   else
     """
-    ${REFORMAT} threads=${task.cpus} in=${left} in2=${right} 2>&1 >/dev/null | awk '{print "RAW "\$0}' | tee stats.txt 
     ${BBDUK} threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
     ${BBDUK} threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
     ${BBDUK} threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
-    ${BBWRAP} -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2>&1 >/dev/null | awk '{print "HOST "\$0}' | tee -a stats.txt 
-    ${BBMERGE} threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN} 2>&1 >/dev/null | awk '{print "MERGED "\$0}' | tee -a stats.txt
-    cat ${merged} ${unpaired_decon} | gzip -c > ${unpaired_clean}
-    ${REFORMAT} threads=${task.cpus} in=${unpaired_clean} 2>&1 >/dev/null | awk '{print "UNPAIRED "\$0}' | tee -a stats.txt
-    ${REFORMAT} threads=${task.cpus} in1=${left_clean} in2=${right_clean}  2>&1 >/dev/null | awk '{print "PAIRED "\$0}' | tee -a stats.txt
+    ${BBWRAP} -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon}
+    ${BBMERGE} threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN}
+    cat ${merged} ${unpaired_nophix} | gzip -c > ${unpaired_clean}
     rm tmp*
-
-    grep "RAW" stats.txt  | grep 'Input:' | awk '{print "READS RAW "\$3/2}' | tee $finalstats
-    grep "HOST" stats.txt | grep "Reads Used:"  | awk '{printf \$4" "}' | awk '{print "READS BIO "\$1/2 + \$2}' | tee -a $finalstats
-    egrep "^UNPAIRED" stats.txt  | grep 'Input:' | awk '{print \$3}' | awk '{print "READS CLEAN_UNPAIRED "\$1}' | tee -a $finalstats
-    egrep "^PAIRED" stats.txt  | grep 'Input:' | awk '{print \$3}' | awk '{print "READS CLEAN_PAIRED "\$1}' | tee -a $finalstats
-    grep "RAW" stats.txt  | grep 'Input:' | awk '{print "BASES RAW "\$5}' | tee -a $finalstats
-    egrep "^UNPAIRED" stats.txt  | grep 'Input:' | awk '{print "BASES CLEAN_UNPAIRED "\$5}' | tee -a $finalstats
-    egrep "^PAIRED" stats.txt  | grep 'Input:' | awk '{print "BASES CLEAN_PAIRED "\$5}' | tee -a $finalstats
-
     """
 }
 
@@ -168,8 +143,6 @@ outputParseGroup.into{outputParseGroup1; outputParseGroup2; outputParseGroup3 }
 outputParseGroup1.join(inputCoAssemblyPre).map{id, group, left_clean, right_clean, unpaired_clean -> [group, id, left_clean, right_clean, unpaired_clean]}.set{inputCoAssembly}
 inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 process runCoAssembly {
-
-  scratch true
 
   tag "${group}"
   publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
@@ -186,7 +159,7 @@ process runCoAssembly {
 
   if( startfrom > 1 )
   """
-  cat ${OUTDIR}/CoAssembly/${group}/$outcontigs | awk -v group=$group '/^>/{print ">Megahit_"group"_contig_"++i; next}{print}' > $outcontigs
+  cp ${OUTDIR}/CoAssembly/${group}/$outcontigs $outcontigs
   cp ${OUTDIR}/CoAssembly/${group}/$megahitlog $megahitlog
   """
 
@@ -216,7 +189,7 @@ process runCoAssembly {
   awk '{printf " -1 " \$1 " -2 " \$2 " -r " \$3}' tmp1 > tmp
 
   $MEGAHIT \$(cat tmp | tr -d '\n') --num-cpu-threads ${task.cpus} --presets meta-large -o megahit_out --mem-flag 2 --verbose
-  cat megahit_out/final.contigs.fa | cut -d ' ' -f 1 | awk -v group=$group '/^>/{print ">Megahit_"group"_contig_"++i; next}{print}' > $outcontigs
+  cat megahit_out/final.contigs.fa | cut -d ' ' -f 1 > $outcontigs
   mv megahit_out/log $megahitlog
   rm -r megahit_out
   """
@@ -226,8 +199,6 @@ process runCoAssembly {
 Single-samples metagenome assembly with spades
 */
 process runSpades {
-
-  scratch true
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
@@ -243,14 +214,14 @@ process runSpades {
 
   if( startfrom > 1 )
   """
-  awk -v id=$id '/^>/{print ">Spades_"id"_contig_"++i; next}{print}' ${OUTDIR}/Samples/${id}/Spades/$outcontigs > $outcontigs
+  cp ${OUTDIR}/Samples/${id}/Spades/$outcontigs $outcontigs
   """
 
   else
   """
   module load Spades/3.9.0
   $SPADES --meta --pe1-1 $left_clean --pe1-2 $right_clean --pe1-s $unpaired_clean -k $SPADES_kmers -o spades_out -t ${task.cpus}
-  awk -v id=$id '/^>/{print ">Spades_"id"_contig_"++i; next}{print}' spades_out/scaffolds.fasta > $outcontigs
+  mv spades_out/scaffolds.fasta $outcontigs
   rm -r spades_out
   """
 }
@@ -259,12 +230,10 @@ process runSpades {
 /*
 Backmapping to spades assembly and contig abundance estimation
 */
-outputSpades.into{inputSpadesBackmapContigs; inputSpadesMaxbin; inputSpadesMarkergenes; inputSpadesRefine}
+outputSpades.into{inputSpadesBackmapContigs; inputSpadesMaxbin}
 inputSpadesBackmap.join(inputSpadesBackmapContigs).set { inputSpadesBackmapWithContigs}
 
 process runSpadesBackmap {
-
-  scratch true
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
@@ -298,11 +267,9 @@ process runSpadesBackmap {
 /*
 Single-sample binning with Maxbin2
 */
-inputSpadesMaxbin.join(outputSpadesBackmap).into {inputMetabat; inputMaxbin; inputMaxbin40}
+inputSpadesMaxbin.join(outputSpadesBackmap).into {inputMetabat; inputMaxbin}
 
 process runMaxbin {
-
-  scratch true
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Maxbin", mode: 'copy'
@@ -326,47 +293,6 @@ process runMaxbin {
 
   tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
   mkdir $binfolder
-(
-  set -Ee
-  function _catch {
-    touch summary.txt
-    echo "exception caught"
-    exit 0
-}
-  trap _catch ERR
-  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin -thread ${task.cpus}
-)
-
-  """
-}
-
-
-process runMaxbin40 {
-
-  scratch true
-
-  tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/Maxbin40", mode: 'copy'
-
-  input:
-  set id, file(spadescontigs), file(depthfile) from inputMaxbin40
-
-  output:
-  set id, file(binfolder) into outputMaxbin40Samples
-
-  script:
-  binfolder = id + "_maxbin40_bins"
-  if( startfrom > 2 )
-  """
-  cp -r ${OUTDIR}/Samples/${id}/Maxbin40/$binfolder $binfolder
-  """
-
-  else
-  """
-  module load Prokka/1.11
-
-  tail -n+2 $depthfile | cut -f 1,3 > maxbin.cov
-  mkdir $binfolder
   mkdir workfolder
   mkdir tmp_workfolder
 (
@@ -377,16 +303,30 @@ process runMaxbin40 {
     exit 0
 }
   trap _catch ERR
-  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin40 -thread ${task.cpus} -markerset 40
+  $MAXBIN -contig $spadescontigs -abund maxbin.cov -out workfolder/${id}.bin -thread ${task.cpus}
 )
 
+  for bin in \$(ls workfolder/${id}.bin.*.fasta | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -p meta -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 $MARKERS107 tmp_workfolder/\$bin.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 $MARKERS40 tmp_workfolder/\$bin.faa 
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar | tee -a summary.txt
+  done
+
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
+  rm -r workfolder
+  rm maxbin.cov
   """
 }
 
-
 process runMetabat {
-
-  scratch true
 
   tag "${id}"
   publishDir "${OUTDIR}/Samples/${id}/Metabat", mode: 'copy'
@@ -409,118 +349,39 @@ process runMetabat {
   """
   module load Prokka/1.11
   mkdir $binfolder
-  $METABAT -i $spadescontigs -a $depthfile -o $binfolder/${id}.metabat.bin -t ${task.cpus}
+  mkdir workfolder
+  mkdir tmp_workfolder
+  $METABAT -i $spadescontigs -a $depthfile -o workfolder/${id}.metabat.bin -t ${task.cpus}
+
+  for bin in \$(ls workfolder/${id}.metabat.bin.*.fa | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -p meta -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar | tee -a summary.txt
+  done 
+
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
+  rm -r workfolder
   """
 }
-
-process runSpadesMarkergenes {
-
-  scratch true
-
-  tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/SpadesMarkergenes", mode: 'copy'
-
-  input:
-  set id, file(spadescontigs) from inputSpadesMarkergenes
-
-  output:
-  set id, file(markergenes) into outputSpadesMarkergenes
-
-  script:
-  markergenes = id + "_markergenes.txt"
-
-  if( startfrom > 2 )
-  """
-  cp -r ${OUTDIR}/Samples/${id}//SpadesMarkergenes/$markergenes $markergenes
-  """
-
-  else
-  """
-  module load Prokka/1.11
-  mkdir tmp
-  cp $spadescontigs tmp
-  perlbrew exec --with perl-5.12.3 $GTDBTK identify --genome_dir tmp -x fasta --cpus ${task.cpus} --out_dir markers
-  cat markers/marker_genes/*/*tophit.tsv | grep -v hits | tr "," "\t" | cut -d ';' -f 1 > $markergenes
-  """
-}
-
-inputSpadesRefine.join(outputSpadesMarkergenes).join(outputMaxbinSamples).join(outputMaxbin40Samples).join(outputMetabatSamples).into{ SamplesAllbins; testtest}
-testtest.println()
-
-process runSpadesRefine {
-
-  tag "${id}"
-  publishDir "${OUTDIR}/Samples/${id}/ContigsRefined", mode: 'copy'
-
-  input:
-  set id, file(spadescontigs), file(markergenes), file(binmaxbin), file(binmaxbin40), file(binmetabat) from SamplesAllbins
-
-  output:
-  set id, file(refinedcontigsout) into SampleRefinedContigs
-
-  script:
-  refinedcontigsout = id + "_refined"
-
-  if( startfrom > 3 )
-  """
-  cp -r ${OUTDIR}/Samples/${id}//ContigsRefined/$refinedcontigsout $refinedcontigsout
-  """
-
-  else
-  """
-  module load R/3.4.0
-  mkdir $refinedcontigsout
-  grep '>' ${binmaxbin}/*fasta | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 > btc.txt
-  grep '>' ${binmaxbin40}/*fasta | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 >> btc.txt
-  grep '>' ${binmetabat}/*fa | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 >> btc.txt
-  $RSCRIPT /ifs/data/nfs_share/sukmb276/github/LaMeta/DAS_Tool_ripoff.Rscript ${id} btc.txt ${markergenes} 
-  $PYTHON /ifs/data/nfs_share/sukmb276/github/LaMeta/sort_into_bins.py ${id}.refined.contig_to_bin.out ${spadescontigs}
-  mkdir bins
-  mkdir -p $refinedcontigsout/bins
-  mv ${id}_cleanbin_*.fasta bins
-  checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins checkm
-  head -n 1 ${id}.checkm.out > $refinedcontigsout/${id}.checkm.out
-  for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${id}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${id}.checkm.out >> ${refinedcontigsout}/${id}.checkm.out; done
-  mv ${id}.refined* $refinedcontigsout
-  """
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /*
 Backmapping to Megahit groupwise co-assembly
 */
-outCoAssembly.into{ inputContigsBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat; inputMegahitMarkergenes; inputMegahitRefine }
+outCoAssembly.into{ inputContigsBackmapMegahit; inputContigsMegahitMaxbin; inputContigsMegahitMetabat }
 inputBackmapMegahit.transpose().combine(inputContigsBackmapMegahit, by: 0) .set { inputBackmapCoassemblyT }
 
 process runCoassemblyBackmap {
 
-  scratch true
-
   tag "${group}-${id}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/Backmap", mode: 'copy'
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
   set group, id, file(left_clean), file(right_clean), file(unpaired_clean), file(megahitcontigs), file(megahitlog) from inputBackmapCoassemblyT
@@ -565,7 +426,7 @@ process runCollapseBams {
   set group, file(abufolder) into coassemblyAbufolder
 
   script:
-  depthfile = group + "_depth.txt"
+  depthfile = group + "depth.txt"
   abufolder = group + "_abufiles"
 
   if( startfrom > 2 )
@@ -589,11 +450,8 @@ process runCollapseBams {
 /*
 Co-assembly binning with Maxbin2
 */
-coassemblyAbufolder.join(inputContigsMegahitMaxbin).into{ inputMegahitMaxbin; inputMegahitMaxbin40 }
+coassemblyAbufolder.join(inputContigsMegahitMaxbin).set{ inputMegahitMaxbin }
 process runMegahitMaxbin {
-
-  scratch true
-
   cpus 20
   memory 240.GB
 
@@ -601,7 +459,7 @@ process runMegahitMaxbin {
   publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin", mode: 'copy'
 
   input:
-  set group, file(inputfolder), file(megahitcontigs), file(megahitlog)  from inputMegahitMaxbin
+  set group, file(inputfolder), file(megahitcontigs) from inputMegahitMaxbin
 
   output:
   set group, file(binfolder) into outputMegahitMaxbin
@@ -620,46 +478,28 @@ process runMegahitMaxbin {
 
   ls ${inputfolder}/*.out > abufiles.txt
   mkdir $binfolder
-  $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin -thread ${task.cpus}
+  mkdir workfolder
+  mkdir tmp_workfolder
+  $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out workfolder/${group}.maxbin.bin -thread ${task.cpus}
 
+  for bin in \$(ls workfolder/${group}.maxbin.*.fasta | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -p meta -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu ${task.cpus} $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu ${task.cpus} $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar
+  done > summary.txt
+
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
+  rm -r workfolder
   """
 }
-
-process runMegahitMaxbin40 {
-
-  scratch true  
-
-  cpus 20
-  memory 240.GB
-
-  tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin40", mode: 'copy'
-
-  input:
-  set group, file(inputfolder), file(megahitcontigs), file(megahitlog)  from inputMegahitMaxbin40
-
-  output:
-  set group, file(binfolder) into outputMegahitMaxbin40
-
-  script:
-  binfolder = group + "_maxbin40_bins"
-
-  if( startfrom > 2 )
-  """
-  cp -r ${OUTDIR}/CoAssembly/${group}/Maxbin40/$binfolder $binfolder
-  """
-
-  else
-  """
-  module load Prokka/1.11
-
-  ls ${inputfolder}/*.out > abufiles.txt
-  mkdir $binfolder
-  $MAXBIN -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin40 -thread ${task.cpus} -markerset 40
-
-  """
-}
-
 
 /*
 Co-assembly binning with Metabat
@@ -667,13 +507,11 @@ Co-assembly binning with Metabat
 coassemblyDepth.join(inputContigsMegahitMetabat).set{ inputMegahitMetabat }
 process runMegahitMetabat {
 
-  scratch true
-
   tag "${group}"
   publishDir "${OUTDIR}/CoAssembly/${group}/Metabat", mode: 'copy'
 
   input:
-  set group, file(inputdepth), file(megahitcontigs), file(megahitlog) from inputMegahitMetabat
+  set group, file(inputdepth), file(megahitcontigs) from inputMegahitMetabat
 
   output:
   set group, file(binfolder) into outputMegahitMetabat
@@ -692,86 +530,97 @@ process runMegahitMetabat {
   module load Prokka/1.11
 
   mkdir $binfolder
-  $METABAT -i $megahitcontigs -a $inputdepth -o $binfolder/${group}.metabat.bin -t ${task.cpus}
+  mkdir tmp_workfolder
+  mkdir workfolder
+  $METABAT -i $megahitcontigs -a $inputdepth -o workfolder/${group}.metabat.bin -t ${task.cpus}
 
+  for bin in \$(ls workfolder/${group}.metabat.bin.*.fa | awk -F'/' '{print \$NF}'); do
+  cat workfolder/\$bin | $PARALLEL -j ${task.cpus} --block 100k --recstart '>' --pipe $PRODIGAL -p meta -a tmp_workfolder/\$bin.{#}.faa 1>/dev/null 2>/dev/null
+  cat tmp_workfolder/\$bin.*.faa > tmp_workfolder/\$bin.faa
+  rm tmp_workfolder/\$bin.*.faa
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker107.hmm --cut_tc --cpu 1 $MARKERS107 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  $HMMSEARCH --domtblout tmp_workfolder/\$bin.marker40.hmm --cut_tc --cpu 1 $MARKERS40 tmp_workfolder/\$bin.faa 1>/dev/null 2>/dev/null
+  bac=\$(grep -v "^#" tmp_workfolder/\$bin.marker107.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/107}')
+  bacar=\$(grep -v "^#" tmp_workfolder/\$bin.marker40.hmm | awk '{print \$4}' | sort | uniq | wc -l | awk '{printf "%0.1f", (100*\$1)/40}')
+  echo \$bin \$bac \$bacar
+  done > summary.txt
+
+  for goodbin in \$(cat summary.txt | awk '{if(\$2>40 || \$3>40) print \$1}'); do
+  cp workfolder/\$goodbin $binfolder
+  done
+  rm -r tmp_workfolder
+  rm -r workfolder
   """
 }
 
+/*
+Dereplication of all bins from single-sample and groupwise co-assemblies
+*/
+source = Channel.create()
+allbinfolders = Channel.create()
 
-process runMegahitMarkergenes {
+outputParseGroup2.join(outputMaxbinSamples).map{id, group, bin -> [group, bin]}.set{MaxbinSamplesGroups}
+outputParseGroup3.join(outputMetabatSamples).map{id, group, bin -> [group, bin]}.set{MetabatSamplesGroups}
 
-  scratch true
+
+MaxbinSamplesGroups.mix(MetabatSamplesGroups,outputMegahitMetabat,outputMegahitMaxbin).groupTuple().set {groupbinfolder}
+
+process runDrepGroups {
 
   tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/MegahitMarkergenes", mode: 'copy'
+  publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
   input:
-  set group, file(megahitcontigs), file(megahitlog) from inputMegahitMarkergenes
+  set group, file(binfolder) from groupbinfolder
 
   output:
-  set group, file(markergenes) into outputMegahitMarkergenes
+  file outfolder into outputDrepGroup
 
   script:
-  markergenes = group + "_markergenes.txt"
+  outfolder = group + "_dRep_out"
 
-  if( startfrom > 2 )
+
   """
-  cp -r ${OUTDIR}/CoAssembly/${group}//MegahitMarkergenes/$markergenes $markergenes
-  """
-
-  else
-  """
-  module load Prokka/1.11
-  mkdir tmp
-  cp $megahitcontigs tmp
-  perlbrew exec --with perl-5.12.3 $GTDBTK identify --genome_dir tmp -x fasta --cpus ${task.cpus} --out_dir markers
-  cat markers/marker_genes/*/*tophit.tsv | grep -v hits | tr "," "\t" | cut -d ';' -f 1 > $markergenes
-  rm -r tmp
-  """
-}
-
-inputMegahitRefine.join(outputMegahitMarkergenes).join(outputMegahitMaxbin).join(outputMegahitMaxbin40).join(outputMegahitMetabat).into{ MegahitAllbins; testtest2}
-testtest2.println()
-
-process runMegahitRefine {
-
-  tag "${group}"
-  publishDir "${OUTDIR}/CoAssembly/${group}/ContigsRefined", mode: 'copy'
-
-  input:
-  set group, file(megahitcontigs), file(megahitlog), file(markergenes), file(binmaxbin), file(binmaxbin40), file(binmetabat) from MegahitAllbins
-
-  output:
-  set group, file(refinedcontigsout) into MegahitRefinedContigs
-
-  script:
-  refinedcontigsout = group + "_refined"
-
-  if( startfrom > 3 )
-  """
-  cp -r ${OUTDIR}/CoAssembly/${group}//ContigsRefined/$refinedcontigsout $refinedcontigsout
-  """
-
-  else
-  """
-  module load R/3.4.0
-  mkdir $refinedcontigsout
-  grep '>' ${binmaxbin}/*fasta | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 > btc.txt
-  grep '>' ${binmaxbin40}/*fasta | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 >> btc.txt
-  grep '>' ${binmetabat}/*fa | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 >> btc.txt
-  $RSCRIPT /ifs/data/nfs_share/sukmb276/github/LaMeta/DAS_Tool_ripoff.Rscript ${group} btc.txt ${markergenes}
-  $PYTHON /ifs/data/nfs_share/sukmb276/github/LaMeta/sort_into_bins.py ${group}.refined.contig_to_bin.out ${megahitcontigs} 
-  mkdir bins
-  mkdir -p $refinedcontigsout/bins
-  mv ${group}_cleanbin_*.fasta bins
-  checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${group}.checkm.out bins checkm
-  head -n 1 ${group}.checkm.out > $refinedcontigsout/${group}.checkm.out
-  for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${group}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${group}.checkm.out >> $refinedcontigsout/${group}.checkm.out; done 
-  mv ${group}.refined* $refinedcontigsout
+  mkdir allbins
+  cp \$(ls *_bins/*.fa*) allbins
+  pyenv local $PYENV3 $PYENV2
+  $DREP bonus testDir --check_dependencies
+  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
+#  rm -r testDir
+  rm -r allbins
+  rm -r $outfolder/data
   """
 }
 
 
+process runDrepAll {
+
+  tag "allbins"
+  publishDir "${OUTDIR}/Final", mode: 'copy'
+
+  input:
+  file binfolder from outputDrepGroup.collect()
+
+  output:
+  file outfolder into outputDrep
+
+  script:
+  outfolder = "dRep_out"
+
+
+  """
+  mkdir allbins
+  for binf in ${binfolder}; do
+  cp \$binf/dereplicated_genomes/*.fa* allbins
+  done
+
+  pyenv local $PYENV3 $PYENV2
+  $DREP bonus testDir --check_dependencies
+  $DREP dereplicate $outfolder -g allbins/*.fa* -p ${task.cpus} -comp ${MINCOMP}
+  rm -r testDir
+  rm -r allbins
+  """
+}
 
 
 workflow.onComplete {
