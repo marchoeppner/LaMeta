@@ -1,3 +1,5 @@
+![](images/ikmb_bfx_logo.png)
+
 # LaMeta
 
 ## UNDER CONSTRUCTION
