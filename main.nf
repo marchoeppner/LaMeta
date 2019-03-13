@@ -327,7 +327,7 @@ process runMaxbin {
 		exit 0
 	}
 	trap _catch ERR
-  	perl run_MaxBin.pl -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin -thread ${task.cpus}
+  	run_MaxBin.pl -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin -thread ${task.cpus}
 	)
 
  	"""
@@ -363,7 +363,7 @@ process runMaxbin40 {
 		exit 0
 	}
 	trap _catch ERR
-	perl run_MaxBin.pl -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin40 -thread ${task.cpus} -markerset 40
+	run_MaxBin.pl -contig $spadescontigs -abund maxbin.cov -out $binfolder/${id}.bin40 -thread ${task.cpus} -markerset 40
 	)
 
   	"""
