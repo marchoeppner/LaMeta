@@ -2,6 +2,8 @@
 
 ## UNDER CONSTRUCTION
 
+THE README IS OUTDATED!
+
 ## Overview
 
 This pipeline takes metagenomic (paired-end) short-read  as input, as generated
