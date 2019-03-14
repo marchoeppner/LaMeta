@@ -56,12 +56,12 @@ if (params.help){
 	exit 0
 }
 
-log.info "========================================="
+log.info "=================================================="
 log.info "LaMeta assembly and annotation pipeline v${workflow.manifest.version}"
 log.info "Nextflow Version:	$workflow.nextflow.version"
 log.info "Command Line:		$workflow.commandLine"
 log.info "Author:		Malte Rühlemann"
-log.info "========================================="
+log.info "================================================="
 log.info "Starting at:		$workflow.start"
 
 /* +++++++++++++++++++++++++++++++++
@@ -110,6 +110,8 @@ if (params.host !=false && params.host_index != false) {
 	exit 1; "Provided neither host genome fasta file (--host) nor a BBMap index location (--host_index); cannot proceed without one of the two."
 }
 
+SPADES_kmers = params.spades_kmers
+
 /* 
 Gather information for summary
 */
@@ -130,11 +132,6 @@ summary['StartedAt'] = workflow.start
 /*
 Channel is created from the file pattern given by --reads.
 */
-
-// Make a BBMap index from the host genome fasta file
-Channel
-  .fromPath(params.host)
-  .set { inputBBMapIndex }
 
 Channel
   .fromFilePairs(params.reads, flat: true)
@@ -169,6 +166,11 @@ if (params.host_index != false ) {
 	println "Using Host index...${HOST_INDEX}"
 	BBMapIndex = Channel.from(HOST_INDEX)
 } else {
+
+	Channel
+	  .fromPath(params.host)
+	  .set { inputBBMapIndex }
+
 	// Create a BBMAP compatible index structure and pass to QC stage
 	process runBuildIndex {
 
@@ -205,7 +207,7 @@ process runQC {
 
 	output:
 	set id,file(left_clean),file(right_clean),file(unpaired_clean) into inputSpades, inputSpadesBackmap, inputCoAssemblyPre
-	set id,file(finalstats) into outputQCstats
+	set id,file(bbduk_host_stats) into outputQCstats
 
 	script:
 
@@ -226,12 +228,16 @@ process runQC {
 	right_clean = id + "_R2.clean.fastq.gz"
 	unpaired_clean = id + "_RU.clean.fastq.gz"
 
+	bbduk_adapter_stats = id + ".bbduk.adapters.stats.txt"
+	bbduk_artifact_stats = id + ".bbduk.artifacts.stats.txt"
+	bbduk_host_stats = id + ".bbduk.host.stats.txt"
+	
 	finalstats = id +".stats.txt"
 
 	"""
 	reformat.sh threads=${task.cpus} in=${left} in2=${right} 2>&1 >/dev/null | awk '{print "RAW "\$0}' | tee stats.txt 
-    	bbduk.sh threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
-    	bbduk.sh threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
+    	bbduk.sh stats=$bbduk_adapter_stats threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
+    	bbduk.sh stats=$bbduk_artifact_stats threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
 	bbduk.sh threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
 	bbwrap.sh -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${genome_index} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2>&1 >/dev/null | awk '{print "HOST "\$0}' | tee -a stats.txt 
 	bbmerge.sh threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN} 2>&1 >/dev/null | awk '{print "MERGED "\$0}' | tee -a stats.txt
@@ -720,6 +726,26 @@ process runMegahitRefine {
 	for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${group}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${group}.checkm.out >> $refinedcontigsout/${group}.checkm.out; done 
 	mv ${group}.refined* $refinedcontigsout
 	"""
+}
+
+process runMultiQCLibrary {
+
+	tag "ALL"
+	publishDir "${OUDIR}/MultiQC/Library", mode: 'copy'
+	
+	input:
+	file(reports) from outputQCstats.collect()
+
+	output:
+	file(multiqc_library) into multiqc_report
+
+	script:
+	multiqc_library = "multiqc_library.html"
+
+	"""
+		multiqc -n multiqc_library.html *.txt
+	"""
+
 }
 
 workflow.onComplete {

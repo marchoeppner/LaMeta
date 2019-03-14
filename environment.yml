@@ -19,3 +19,4 @@ dependencies:
  - gtdbtk=0.1.6
  - checkm-genome=1.0.13
  - biopython
+ - multiqc=1.6
