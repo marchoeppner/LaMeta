@@ -34,7 +34,7 @@ Usage:
 
 A typical command to run this pipeline would be:
 
-nextflow run main.nf XXXXXX
+nextflow run main.nf --groupfile my_groups.txt --reads 'data/*_R{1,2}_001.fastq.gz' 
 
 Mandatory arguments:
 
@@ -42,10 +42,11 @@ Mandatory arguments:
 --reads			A pattern to define which reads to use
 
 Options:
-
+--host			The location of a genome sequence in FASTA format to use as "host" reference for backmapping
+--host_index		The folder containing the BBMap index matching the host fasta file (optional, will be produced otherwise)
+--adapters 		A gzip compressed FASTA file with sequencing adapters (default: built-in Nextera adapter file)
 --email			Provide an Email to which reports are send. 
 --run_name		A name for this run.
-
 """.stripIndent()
 }
 
@@ -94,9 +95,20 @@ if (!ADAPTERS.exists()) exit 1; "Unable to find specified adapter sequence file 
 if (params.host) {
 	HOST = file(params.host)
 	if ( !HOST.exists() ) exit 1; "Unable to find host reference sequence (--host)"
-} else {
-	exit 1; "Most provide the path to the host genome and mapping index (--host)"
 }	
+
+if (params.host_index) {
+	HOST_INDEX = file(params.host_index)
+	if (!HOST_INDEX.exists() ) exit 1; "Could not located the BBMap index (--host_index)"
+	HOST_INDEX_REF = file(params.host_index + "/ref")
+	if (!HOST_INDEX_REF.exists() ) exit 1; "The specified host index directory does not contain the BBMap ref folder (--host_index)"
+} 
+
+if (params.host !=false && params.host_index != false) {
+	println "Specified both a host fasta file and a pre-compiled index. Will ignore the fasta file!"
+} else if (params.host == false && params.host_index == false) {
+	exit 1; "Provided neither host genome fasta file (--host) nor a BBMap index location (--host_index); cannot proceed without one of the two."
+}
 
 /* 
 Gather information for summary
@@ -153,36 +165,43 @@ Mapping against PhiX and Host genome (default:human). Mapped reads/read-pairs (a
 are discarded.
 */
 
-process runBuildIndex {
+if (params.host_index != false ) {
+	println "Using Host index...${HOST_INDEX}"
+	BBMapIndex = Channel.from(HOST_INDEX)
+} else {
+	// Create a BBMAP compatible index structure and pass to QC stage
+	process runBuildIndex {
 
-	tag "All"
-	 publishDir "${OUTDIR}/Host/", mode: 'copy'
+		tag "All"
+		 publishDir "${OUTDIR}/Host/", mode: 'copy'
 
-	input:
-	file(genome_fa) from inputBBMapIndex
+		input:
+		file(genome_fa) from inputBBMapIndex
 
-	output:	
-	set file(genome_fa),file(index_dir) into BBMapIndex
+		output:	
+		set file(index_dir) into BBMapIndex
 
-	script:
-	index_dir = "ref"
+		script:
+		index_dir = "ref"
 
-	"""
-		bbmap.sh ref=$genome_fa
-	"""
+		"""
+		bbmap.sh -Xmx${task.memory.toGiga()}g t=${task.cpus} ref=$genome_fa
+		"""
+	}
+
 }
 
 inputQCIndex = inputQC.combine(BBMapIndex)
 
 process runQC {
 
-	scratch true
+	// scratch true
 
 	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
 
 	input:
-	set id, file(left),file(right),file(genome_fa),file(genome_index) from inputQCIndex
+	set id, file(left),file(right),file(genome_index) from inputQCIndex
 
 	output:
 	set id,file(left_clean),file(right_clean),file(unpaired_clean) into inputSpades, inputSpadesBackmap, inputCoAssemblyPre
@@ -214,7 +233,7 @@ process runQC {
     	bbduk.sh threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
     	bbduk.sh threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
 	bbduk.sh threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
-	bbwrap.sh -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HOST} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2>&1 >/dev/null | awk '{print "HOST "\$0}' | tee -a stats.txt 
+	bbwrap.sh -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${genome_index} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2>&1 >/dev/null | awk '{print "HOST "\$0}' | tee -a stats.txt 
 	bbmerge.sh threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN} 2>&1 >/dev/null | awk '{print "MERGED "\$0}' | tee -a stats.txt
 	cat ${merged} ${unpaired_decon} | gzip -c > ${unpaired_clean}
 	reformat.sh threads=${task.cpus} in=${unpaired_clean} 2>&1 >/dev/null | awk '{print "UNPAIRED "\$0}' | tee -a stats.txt
