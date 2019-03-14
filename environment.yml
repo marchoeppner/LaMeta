@@ -18,3 +18,4 @@ dependencies:
  - r-base=3.5.1
  - gtdbtk=0.1.6
  - checkm-genome=1.0.13
+ - biopython

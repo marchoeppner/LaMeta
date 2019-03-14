@@ -18,3 +18,5 @@ From:continuumio/anaconda
     /opt/conda/bin/conda clean -a
 
     mkdir -p /ifs
+
+   apt-get -y install procps

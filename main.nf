@@ -38,7 +38,8 @@ nextflow run main.nf XXXXXX
 
 Mandatory arguments:
 
-Enter here
+--groupfile		A two-column tab-delimited file that matches fastq libraries to biological groups
+--reads			A pattern to define which reads to use
 
 Options:
 
@@ -46,6 +47,7 @@ Options:
 --run_name		A name for this run.
 
 """.stripIndent()
+}
 
 // Show help message
 if (params.help){
@@ -84,20 +86,17 @@ READMINLEN = params.readminlen
 if(params.adapters) {
 	ADAPTERS = file(params.adapters)
 } else {
-	ADAPTERS = file(workflow.projectDir + "/assets/adapters/nextera.fa.gz"
+	ADAPTERS = file(workflow.projectDir + "/assets/adapters/nextera.fa.gz")
 }
 if (!ADAPTERS.exists()) exit 1; "Unable to find specified adapter sequence file (--adapters)"
 
 // Specify a host genome to map against (assume a mapping index exists)
-HOST = file(params.host)
-if (!HOST.exists?() ) exist 1; "Unable to find host reference sequence (--host)"
-
-// HMM profiles to use
-MARKERS107=file(params.markers107hmm)
-if (!MARKERS107.exists?()) exit 1; "Unable to find the MARKERS107 hmm profile (--markers107hmm)"
-	
-MARKERS40=file(params.markers40hmm)
-if (!MARKERS40.exists?()) exit 1; "Unable to find the MARKERS40 hmm profile (--markers40hmm)"
+if (params.host) {
+	HOST = file(params.host)
+	if ( !HOST.exists() ) exit 1; "Unable to find host reference sequence (--host)"
+} else {
+	exit 1; "Most provide the path to the host genome and mapping index (--host)"
+}	
 
 /* 
 Gather information for summary
@@ -114,10 +113,16 @@ summary['HostGenome'] = params.host
 summary['Adapters'] = params.adapters
 summary['SessionID'] = workflow.sessionId
 summary['LaMeta Version'] = workflow.manifest.version
+summary['StartedAt'] = workflow.start
 
 /*
 Channel is created from the file pattern given by --reads.
 */
+
+// Make a BBMap index from the host genome fasta file
+Channel
+  .fromPath(params.host)
+  .set { inputBBMapIndex }
 
 Channel
   .fromFilePairs(params.reads, flat: true)
@@ -147,6 +152,28 @@ process parseGroup {
 Mapping against PhiX and Host genome (default:human). Mapped reads/read-pairs (also discordantly)
 are discarded.
 */
+
+process runBuildIndex {
+
+	tag "All"
+	 publishDir "${OUTDIR}/Host/", mode: 'copy'
+
+	input:
+	file(genome_fa) from inputBBMapIndex
+
+	output:	
+	set file(genome_fa),file(index_dir) into BBMapIndex
+
+	script:
+	index_dir = "ref"
+
+	"""
+		bbmap.sh ref=$genome_fa
+	"""
+}
+
+inputQCIndex = inputQC.combine(BBMapIndex)
+
 process runQC {
 
 	scratch true
@@ -155,7 +182,7 @@ process runQC {
 	publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
 
 	input:
-	set id, file(left),file(right) from inputQC
+	set id, file(left),file(right),file(genome_fa),file(genome_index) from inputQCIndex
 
 	output:
 	set id,file(left_clean),file(right_clean),file(unpaired_clean) into inputSpades, inputSpadesBackmap, inputCoAssemblyPre
@@ -187,7 +214,7 @@ process runQC {
     	bbduk.sh threads=${task.cpus} in=${left} in2=${right} out1=${left_trimmed} out2=${right_trimmed} outs=${unpaired_trimmed} ref=${ADAPTERS} ktrim=r k=23 mink=11 hdist=1 minlength=${READMINLEN} tpe tbo
     	bbduk.sh threads=${task.cpus} in=${left_trimmed} in2=${right_trimmed} k=31 ref=artifacts,phix ordered cardinality out1=${left_nophix} out2=${right_nophix} minlength=${READMINLEN}
 	bbduk.sh threads=${task.cpus} in=${unpaired_trimmed}  k=31 ref=artifacts,phix ordered cardinality out1=${unpaired_nophix} minlength=${READMINLEN}
-	bbwrap.sh -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HSREF} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2>&1 >/dev/null | awk '{print "HOST "\$0}' | tee -a stats.txt 
+	bbwrap.sh -Xmx23g threads=${task.cpus} minid=0.95 maxindel=3 bwr=0.16 bw=12 quickmatch fast minhits=2 qtrim=rl trimq=20 minlength=${READMINLEN} in=${left_nophix},${unpaired_nophix} in2=${right_nophix},NULL path=${HOST} outu1=${left_decon} outu2=${right_decon} outu=${unpaired_decon} 2>&1 >/dev/null | awk '{print "HOST "\$0}' | tee -a stats.txt 
 	bbmerge.sh threads=${task.cpus} in1=${left_decon} in2=${right_decon} out=${merged} outu1=${left_clean} outu2=${right_clean} mininsert=${READMINLEN} 2>&1 >/dev/null | awk '{print "MERGED "\$0}' | tee -a stats.txt
 	cat ${merged} ${unpaired_decon} | gzip -c > ${unpaired_clean}
 	reformat.sh threads=${task.cpus} in=${unpaired_clean} 2>&1 >/dev/null | awk '{print "UNPAIRED "\$0}' | tee -a stats.txt
@@ -237,9 +264,9 @@ process runCoAssembly {
 
 	awk '
   	{
-      	for (i=1; i<=NF; i++)  {
-          	a[NR,i] = \$i
-      	}
+	      	for (i=1; i<=NF; i++)  {
+        	  	a[NR,i] = \$i
+      		}
   	}
   	NF>p { p = NF }
   	END {
@@ -312,7 +339,7 @@ process runSpadesBackmap {
 	outdepth = id + ".depth.txt"
 	"""
   	bbwrap.sh -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$spadescontigs t=${task.cpus} out=tmp.sam kfilter=22 subfilter=15 maxindel=80
-  	samtools view -u tmp.sam | $SAMTOOLS sort -m 54G -@ 3 -o tmp_final.bam
+  	samtools view -u tmp.sam | samtools sort -m 54G -@ 3 -o tmp_final.bam
   	jgi_summarize_bam_contig_depths --outputDepth $outdepth tmp_final.bam
   	rm tmp*
   	rm -r ref
@@ -412,7 +439,7 @@ process runMetabat {
 
 	"""
 	mkdir $binfolder
-	$METABAT -i $spadescontigs -a $depthfile -o $binfolder/${id}.metabat.bin -t ${task.cpus}
+	metabat2 -i $spadescontigs -a $depthfile -o $binfolder/${id}.metabat.bin -t ${task.cpus}
 	"""
 }
 
@@ -435,7 +462,7 @@ process runSpadesMarkergenes {
 	"""
 	mkdir tmp
 	cp $spadescontigs tmp
-	gtdbtk $GTDBTK identify --genome_dir tmp -x fasta --cpus ${task.cpus} --out_dir markers
+	gtdbtk identify --genome_dir tmp -x fasta --cpus ${task.cpus} --out_dir markers
 	cat markers/marker_genes/*/*tophit.tsv | grep -v hits | tr "," "\t" | cut -d ';' -f 1 > $markergenes
 	"""
 }
@@ -500,7 +527,7 @@ process runCoassemblyBackmap {
 	samtools view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
 	rm tmp*
 	rm -r ref
-  """
+	"""
 }
 
 /*
@@ -558,11 +585,12 @@ process runMegahitMaxbin {
 	script:
 	binfolder = group + "_maxbin_bins"
 
+	"""
 	ls ${inputfolder}/*.out > abufiles.txt
 	mkdir $binfolder
 	run_MaxBin.pl -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin -thread ${task.cpus}
 
-  """
+  	"""
 }
 
 process runMegahitMaxbin40 {
@@ -581,10 +609,10 @@ process runMegahitMaxbin40 {
 	script:
 	binfolder = group + "_maxbin40_bins"
 
+	"""
 	ls ${inputfolder}/*.out > abufiles.txt
 	mkdir $binfolder
 	run_MaxBin.pl -contig $megahitcontigs -abund_list abufiles.txt -out $binfolder/${group}.maxbin.bin40 -thread ${task.cpus} -markerset 40
-
 	"""
 }
 
@@ -614,7 +642,6 @@ process runMegahitMetabat {
 	"""
 	mkdir $binfolder
 	metabat2 -i $megahitcontigs -a $inputdepth -o $binfolder/${group}.metabat.bin -t ${task.cpus}
-
 	"""
 }
 
@@ -681,11 +708,13 @@ workflow.onComplete {
   log.info "Duration:		$workflow.duration"
   log.info "========================================="
 
+  summary["finishedAt"] = workflow.complete
+  summary["duration"] = workflow.duration
+
   def email_fields = [:]
   email_fields['version'] = workflow.manifest.version
   email_fields['session'] = workflow.sessionId
   email_fields['runName'] = run_name
-  email_fields['Samples'] = params.samples
   email_fields['success'] = workflow.success
   email_fields['dateStarted'] = workflow.start
   email_fields['dateComplete'] = workflow.complete
@@ -729,7 +758,7 @@ workflow.onComplete {
   
   def subject = "LaMeta analysis finished ($run_name)."
 
-if (params.email) {
+  if (params.email) {
 
   	def mqc_report = null
   	try {

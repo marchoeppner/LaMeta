@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 ### grep '>' M*/*/*fa* | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 3 > btc.txt
 args<-commandArgs(trailingOnly = TRUE)
 id=args[1]
