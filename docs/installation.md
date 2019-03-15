@@ -23,11 +23,11 @@ If conda is setup and chosen as privisioning option, LaMeta will make sure that 
 
 #### Install Singularity
 
-Singularity is a container framework, similar to Docker. Unlike Docker, it can be run on shared compute clusters where the user may not have root proviliges. 
+[Singularity](https://www.sylabs.io/singularity/) is a container framework, similar to Docker. Unlike Docker, it can be run on shared compute clusters where the user may not have root proviliges. 
 
 Should Singularity not yet be available on your compute cluster, please contact your administrators. 
 
-If Singularity is chosen for software provisioning, LaMeta will pull the container from Singularity hub. This usually takes less than 30 seconds. 
+If Singularity is chosen for software provisioning, LaMeta will pull the container from [Singularity hub](https://singularity-hub.org/). This usually takes less than 30 seconds. 
 
 ### Setting up your own configuration
 
@@ -47,7 +47,7 @@ One of:
 
 Your cluster:
 
-`your_cluster.config` This file should contain information about your cluster queue. Please see [here](https://www.nextflow.io/docs/latest/executor.html) for some information on to do that or have a look at the other included files. 
+`your_cluster.config` This file should contain information about your cluster queue. Please see [here](https://www.nextflow.io/docs/latest/executor.html) for some information on how to do that or have a look at the other included files. 
 
 #### Adding your own profile
 
