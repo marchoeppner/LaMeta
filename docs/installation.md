@@ -74,7 +74,7 @@ LaMeta requires two reference data sets to run and which are not provisioned aut
 
 #### GTDB-TK Reference DB
 
-Please download the database [here](wget https://data.ace.uq.edu.au/public/gtdbtk/release_86/gtdbtk.r86_v2_data.tar.gz)
+Please download the database [here](https://data.ace.uq.edu.au/public/gtdbtk/release_86/gtdbtk.r86_v2_data.tar.gz)
 
 Once the database has been downloaded and de-compressed (tar -xvf gtdbtk.r86_v2_data.tar.gz), add the full path to the directory to your config file 
 
