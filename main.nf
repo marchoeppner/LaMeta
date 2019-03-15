@@ -58,7 +58,7 @@ if (params.help){
 }
 
 log.info "=================================================="
-log.info "LaMeta assembly and annotation pipeline v${workflow.manifest.version}"
+log.info "LaMeta metgenomic assembly pipeline v${workflow.manifest.version}"
 log.info "Nextflow Version:	$workflow.nextflow.version"
 log.info "Command Line:		$workflow.commandLine"
 log.info "Authors:		Malte Rühlemann & M. Höppner"

@@ -6,7 +6,15 @@
 
 LaMeta uses the Nextflow pipeline framework for job distribution on a compute cluster. In addition, software is provisioned either through conda or a singularity container. 
 
-### Get Nextflow.
+#### Hardware requirements
+
+LaMeta was written to run on compute clusters running Linux. Mac and Windows are not supported, but you mahe be able to run the pipeline on your Linux Desktop machine - assuming it has sufficient memory.
+
+##### Memory
+
+Most of LaMeta runs on typical HPC compute nodes with 128GB (or less). However, the assembly stages - especially to co-assembly of all samples in a given group - can consume large amounts of memory. A Node with at least 256GB Ram is recommended. 
+
+#### Get Nextflow.
 
 Nextflow can be downloaded [here](https://github.com/nextflow-io/nextflow/releases).
 LaMeta has been tested with Nextflow version 19.02 - older versions may work too. 
