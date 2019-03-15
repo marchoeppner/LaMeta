@@ -47,6 +47,7 @@ Options:
 --adapters 		A gzip compressed FASTA file with sequencing adapters (default: built-in Nextera adapter file)
 --email			Provide an Email to which reports are send. 
 --run_name		A name for this run.
+--skip_multiqc		Do not generate a QC report
 """.stripIndent()
 }
 

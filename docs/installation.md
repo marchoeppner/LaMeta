@@ -60,7 +60,7 @@ profiles {
 		includeConfig 'conf/base.config'
 		includeConfig 'conf/your_cluster.config'
 		includeConfig 'conf/conda.config'
-
+	}
 ```
 
 
@@ -68,4 +68,31 @@ This example assumes that you wish to use conda for provisioning.
 
 To use this profile, specify it when starting LaMeta with `-profile your_profile`.
 
+### Reference data
+
+LaMeta requires two reference data sets to run and which are not provisioned automatically. Note that all the options listed below can also be set from the command line when starting the pipeline (params.some_parameter becomes `--some_parameter`). 
+
+#### GTDB-TK Reference DB
+
+Please download the database [here](wget https://data.ace.uq.edu.au/public/gtdbtk/release_86/gtdbtk.r86_v2_data.tar.gz)
+
+Once the database has been downloaded and de-compressed (tar -xvf gtdbtk.r86_v2_data.tar.gz), add the full path to the directory to your config file 
+
+`params.gtdb = /path/to/gtdb`
+
+#### Host reference genome
+
+This is optional and can also be provided during pipeline execution; depending on whether you have your reference data in FASTA format or already as a BBMap index. 
+
+For instructions on how to prepare a reference dataset, please see [here](http://seqanswers.com/forums/showthread.php?t=42552)
+
+If you wish to provide a genome sequence, you can permanently set it in your config file using:
+
+`params.host = /path/to/genome.fa` 
+
+Otherwise, if you have a folder container a BBMap `ref`subfolder, you can do:
+
+`params.host_index = /path/to/folder`
+
+Note that "path/to/folder" should point to the folder container the BBMap "ref" folder, not the "ref" folder itself. 
 
