@@ -1,4 +1,4 @@
-![](images/ikmb_bfx_logo.png)
+![](../images/ikmb_bfx_logo.png)
 
 # Usage information
 
@@ -6,9 +6,9 @@
 
 To execute the pipeline with all default settings, do:
 
-`nextflow -c nextflow.config run main.nf --reads '/path/to/*_R{1,2}_001.fastq.gz' --host_index /path/to/index`
+`nextflow -c nextflow.config run main.nf --reads '/path/to/*_R{1,2}_001.fastq.gz' --host_index /path/to/index -profile your_profile`
 
-Where `host_index` is a folder containing a BBMap index directory ("ref").
+Where `host_index` is a folder containing a BBMap index directory ("ref") and `your_profile` refers to the cluster profile you have [configured](installation.md). 
 
 Alternatively, the pipeline can also create an index for you, if you provide a FASTA file:
 
@@ -18,7 +18,7 @@ For details on how to prepare your reference database, please also see [here](ht
 
 ### Execution profile
 
-Make sure you read the [Installation and Configuration](../docs/installation.md) and specify your profile using `-profile`
+Make sure you read the [Installation and Configuration](installation.md) and specify your profile using `-profile`
 
 ### Optional parameters
 
