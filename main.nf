@@ -60,7 +60,7 @@ log.info "=================================================="
 log.info "LaMeta assembly and annotation pipeline v${workflow.manifest.version}"
 log.info "Nextflow Version:	$workflow.nextflow.version"
 log.info "Command Line:		$workflow.commandLine"
-log.info "Author:		Malte Rühlemann"
+log.info "Authors:		Malte Rühlemann & M. Höppner"
 log.info "================================================="
 log.info "Starting at:		$workflow.start"
 
@@ -207,7 +207,7 @@ process runQC {
 
 	output:
 	set id,file(left_clean),file(right_clean),file(unpaired_clean) into inputSpades, inputSpadesBackmap, inputCoAssemblyPre
-	set id,file(bbduk_host_stats) into outputQCstats
+	file(bbduk_adapter_stats) into outputQCstats
 
 	script:
 
@@ -230,7 +230,6 @@ process runQC {
 
 	bbduk_adapter_stats = id + ".bbduk.adapters.stats.txt"
 	bbduk_artifact_stats = id + ".bbduk.artifacts.stats.txt"
-	bbduk_host_stats = id + ".bbduk.host.stats.txt"
 	
 	finalstats = id +".stats.txt"
 
@@ -732,6 +731,9 @@ process runMultiQCLibrary {
 
 	tag "ALL"
 	publishDir "${OUDIR}/MultiQC/Library", mode: 'copy'
+
+	when:
+	params.skip_multiqc != true
 	
 	input:
 	file(reports) from outputQCstats.collect()

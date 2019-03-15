@@ -1,4 +1,4 @@
-![](images/ikmb_bfx_logo.png)
+![](../images/ikmb_bfx_logo.png)
 
 # LaMeta
 
@@ -11,6 +11,8 @@ This pipeline takes metagenomic (paired-end) short-read data as input, as genera
 3. Additionally, a co-assembly with Megahit is performed. Using a groupfile it is possible to split samples into separate groups for this co-assembly. Again the resulting contigs are used as reference for backmapping, followed by two separate binning approaches using MaxBin2 and Metabat2, which for this approach now can also incorporate across-sample abundance differences for the binning procedure.
 4. The resulting bins from the single-sample and subgroup co-assembly approaches are finally dereplicated using the dRep package, to achieve the highest-possible quality of single-genome bins combined with low redundancy.
 5. All samples are again mapped to the final resulting bins to estimate bin abundance.
+
+As LaMeta is designed to run on common distributed compute systems by using [Netxflow](https://www.nextflow.io), its throughput is limited only by the available hardware and can theoretically scale to hundreds of samples. 
 
 ## Documentation
 
