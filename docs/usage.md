@@ -24,7 +24,7 @@ Make sure you read the [Installation and Configuration](installation.md) and spe
 
 The pipeline uses several parameters to fine-tune the various pipeline stages. Some of these can be modified during pipeline execution.
 
-`--adapters` Path to a gzipped FASTA file containing sequencing adapters to be removed (default: Nextera, built-in).
+`--adapters` Path to a (gzipped) FASTA file containing sequencing adapters to be removed (default: Nextera, built-in).
 
 `--run_name` Give this pipeline run a useful name
 
