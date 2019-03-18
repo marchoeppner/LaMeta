@@ -111,6 +111,13 @@ if (params.host !=false && params.host_index != false) {
 	exit 1; "Provided neither host genome fasta file (--host) nor a BBMap index location (--host_index); cannot proceed without one of the two."
 }
 
+if ( params.gtdb != false ) {
+	GTDB_FILE = file(params.gtdb)
+	if (!GTDB_FILE.exists()) exit 1; "Could not find the specified GTDB-TK Database (--gtdb)"
+} else {
+	exit 1, "Must prodvide the path to the GTDB-TK Database (--gtdb)"
+}
+
 SPADES_kmers = params.spades_kmers
 
 /* 
@@ -134,6 +141,12 @@ summary['StartedAt'] = workflow.start
 Channel is created from the file pattern given by --reads.
 */
 
+// Pass the GTDBTK Database as a channel so we can import it as an environment variable into the process
+Channel
+   .from(params.gtdb + "/")
+   .set { inputGTDB }
+
+// Read fastq files as paired - complain if nothing is found
 Channel
   .fromFilePairs(params.reads, flat: true)
   .ifEmpty { exit 1, "Could not find reads matching the specified input format/location" }
@@ -164,7 +177,6 @@ are discarded.
 */
 
 if (params.host_index != false ) {
-	println "Using Host index...${HOST_INDEX}"
 	BBMapIndex = Channel.from(HOST_INDEX)
 } else {
 
@@ -470,13 +482,14 @@ process runMetabat {
 
 process runSpadesMarkergenes {
 
-	scratch true
+	// scratch true
 
 	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/SpadesMarkergenes", mode: 'copy'
-
+	
 	input:
 	set id, file(spadescontigs) from inputSpadesMarkergenes
+	env GTDBTK_DB_PATH from inputGTDB
 
 	output:
 	set id, file(markergenes) into outputSpadesMarkergenes
@@ -485,6 +498,8 @@ process runSpadesMarkergenes {
 	markergenes = id + "_markergenes.txt"
 
 	"""
+	echo "TESTING env" >> log.txt
+	echo \$GTDBTK_DB_PATH >> log.txt
 	mkdir tmp
 	cp $spadescontigs tmp
 	gtdbtk identify --genome_dir tmp -x fasta --cpus ${task.cpus} --out_dir markers

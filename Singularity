@@ -9,6 +9,8 @@ From:continuumio/anaconda
 %environment
     PATH=/opt/conda/envs/LaMeta-1.0/bin:$PATH
     export PATH
+    GTDBTK_DATA_PATH=/refdata/
+    export GTDBTK_DATA_PATH
 
 %files
     environment.yml /
@@ -18,5 +20,6 @@ From:continuumio/anaconda
     /opt/conda/bin/conda clean -a
 
     mkdir -p /ifs
+    mkdir -p /refdata
+    apt-get -y install procps
 
-   apt-get -y install procps
