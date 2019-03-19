@@ -118,6 +118,10 @@ if ( params.gtdb != false ) {
 	exit 1, "Must prodvide the path to the GTDB-TK Database (--gtdb)"
 }
 
+if (params.checkm_db != false ) {
+	if (!file(params.checkm_db).exists() ) exit 1; "Could not find the CheckM database (--checkm_db)"
+}
+	
 SPADES_kmers = params.spades_kmers
 
 /* 
@@ -145,6 +149,58 @@ Channel is created from the file pattern given by --reads.
 Channel
    .from(params.gtdb + "/")
    .set { inputGTDB }
+
+// CheckM database - use existing or retrieve on the fly
+if (params.checkm_db != false ) {
+	CHECKM_DB = Channel.fromPath(params.checkm_db)
+} else {
+
+	CHECKM_DB_URL = Channel.from(params.checkm_db_url)
+
+	// make this a local process for cases where executing nodes may not have access to the web
+	process getCheckMDB {
+
+		executor = "local"
+
+		tag "ALL"
+		publishDir "${OUTDIR}/refs", mode: 'copy'
+
+		input:
+		val(url) from CHECKM_DB_URL
+
+		output:
+		file(checkm_db_path) into Checkm_db
+
+		script:
+		checkm_db_path = "checkm_db"
+
+		"""
+			wget -P $checkm_db_path $url
+			cd $checkm_db_path
+			tar -xvf checkm_data_2015_01_16.tar.gz
+			rm *.tar.gz
+		"""
+	}
+}
+
+// set checkm db location
+process runSetCheckmRoot {
+
+	tag "ALL"
+
+	input:
+	file(checkm_db_path) from Checkm_db
+
+	output:
+	file(checkm_db_path) into checkmdb_out
+
+	script:
+
+	"""
+		checkm data setRoot $checkm_db_path 2>&1>/dev/null
+	"""
+
+}
 
 // Read fastq files as paired - complain if nothing is found
 Channel
@@ -516,6 +572,7 @@ process runSpadesRefine {
 
 	input:
 	set id, file(spadescontigs), file(markergenes), file(binmaxbin), file(binmaxbin40), file(binmetabat) from SamplesAllbins
+	file(db_path) from checkmdb_out
 
 	output:
 	set id, file(refinedcontigsout) into SampleRefinedContigs

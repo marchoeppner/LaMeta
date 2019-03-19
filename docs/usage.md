@@ -12,7 +12,7 @@ Where `host_index` is a folder containing a BBMap index directory ("ref") and `y
 
 Alternatively, the pipeline can also create an index for you, if you provide a FASTA file:
 
-`nextflow -c nextflow.config run main.nf --reads '/path/to/*_R{1,2}_001.fastq.gz' --host /path/to/genome.fa`
+`nextflow -c nextflow.config run main.nf --reads '/path/to/*_R{1,2}_001.fastq.gz' --host /path/to/genome.fa -profile your_profile`
 
 For details on how to prepare your reference database, please also see [here](http://seqanswers.com/forums/showthread.php?t=42552).
 
