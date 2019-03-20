@@ -618,10 +618,11 @@ process runCoassemblyBackmap {
 
 	script:
 	bamout = id + ".megahit.final.bam"
+	mem_per_thread = (task.memory.toGiga() / task.cpus)
 
 	"""
 	bbwrap.sh -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$megahitcontigs t=${task.cpus} out=tmp_sam.gz kfilter=22 subfilter=15 maxindel=80
-	samtools view -u tmp_sam.gz | $SAMTOOLS sort -m 54G -@ 3 -o $bamout
+	samtools view -u tmp_sam.gz | samtools sort -m ${mem_per_thread}G -@ ${task.cpus} -o $bamout
 	rm tmp*
 	rm -r ref
 	"""
