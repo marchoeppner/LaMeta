@@ -148,7 +148,7 @@ Channel is created from the file pattern given by --reads.
 // Pass the GTDBTK Database as a channel so we can import it as an environment variable into the process
 Channel
    .from(params.gtdb + "/")
-   .set { inputGTDB }
+   .into { inputGTDB; inputGTDBMarkers }
 
 // CheckM database - use existing or retrieve on the fly
 if (params.checkm_db != false ) {
@@ -335,7 +335,7 @@ inputCoAssembly.groupTuple().into{ inputCoAssemblyByGroup; inputBackmapMegahit }
 
 process runCoAssembly {
 
-	scratch true
+	// scratch true
 
 	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
@@ -554,8 +554,6 @@ process runSpadesMarkergenes {
 	markergenes = id + "_markergenes.txt"
 
 	"""
-	echo "TESTING env" >> log.txt
-	echo \$GTDBTK_DB_PATH >> log.txt
 	mkdir tmp
 	cp $spadescontigs tmp
 	gtdbtk identify --genome_dir tmp -x fasta --cpus ${task.cpus} --out_dir markers
@@ -752,6 +750,7 @@ process runMegahitMarkergenes {
 
 	input:
 	set group, file(megahitcontigs), file(megahitlog) from inputMegahitMarkergenes
+        env GTDBTK_DB_PATH from inputGTDBMarkers
 
 	output:
 	set group, file(markergenes) into outputMegahitMarkergenes
