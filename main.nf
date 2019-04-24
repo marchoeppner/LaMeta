@@ -579,6 +579,7 @@ process runSpadesRefine {
 	refinedcontigsout = id + "_refined"
 
 	"""
+	R CMD javareconf > /dev/null 2>&1 || true
 	mkdir $refinedcontigsout
 	grep '>' ${binmaxbin}/*fasta | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 > btc.txt
 	grep '>' ${binmaxbin40}/*fasta | tr ':' ' ' | tr -d '>'  | cut -d '/' -f 2 >> btc.txt
