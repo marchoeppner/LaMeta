@@ -169,10 +169,10 @@ if (params.checkm_db != false ) {
 		val(url) from CHECKM_DB_URL
 
 		output:
-		file(checkm_db_path) into Checkm_db
+		file("${checkm_db_path}/*") into Checkm_db
 
 		script:
-		checkm_db_path = "checkm_db"
+		checkm_db_path = "checkm_data"
 
 		"""
 			wget -P $checkm_db_path $url
@@ -195,9 +195,10 @@ process runSetCheckmRoot {
 	file(checkm_db_path) into checkmdb_out
 
 	script:
+	
 
 	"""
-		checkm data setRoot $checkm_db_path 2>&1>/dev/null
+		printf "${checkm_db_path}\n${checkm_db_path}\n" | checkm data setRoot
 	"""
 
 }
@@ -589,7 +590,9 @@ process runSpadesRefine {
   	mkdir -p bins
   	mkdir -p $refinedcontigsout/bins
 	mv ${id}_cleanbin_*.fasta bins
-	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins checkm
+	chd=\$(readlink -f ${db_path})
+	printf "\$chd\\n\$chd\\n" | checkm data setRoot
+	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins ${db_path}
 	head -n 1 ${id}.checkm.out > $refinedcontigsout/${id}.checkm.out
 	for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${id}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${id}.checkm.out >> ${refinedcontigsout}/${id}.checkm.out; done
 	 mv ${id}.refined* $refinedcontigsout
@@ -804,7 +807,7 @@ process runMegahitRefine {
 process runMultiQCLibrary {
 
 	tag "ALL"
-	publishDir "${OUDIR}/MultiQC/Library", mode: 'copy'
+	publishDir "${OUTDIR}/MultiQC/Library", mode: 'copy'
 
 	when:
 	params.skip_multiqc != true
