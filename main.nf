@@ -12,18 +12,6 @@ Implementation: M. Rühlemann & M. Hoeppner
 
 */
 
-try {
-    if( ! nextflow.version.matches(">= $workflow.manifest.nextflowVersion") ){
-        throw GroovyException('Nextflow version too old')
-    }
-} catch (all) {
-    log.error "====================================================\n" +
-              "  Nextflow version $workflow.manifest.nextflowVersion required! You are running v$workflow.nextflow.version.\n" +
-              "  Pipeline execution will continue, but things may break.\n" +
-              "  Please use a more recent version of Nextflow!\n" +
-              "============================================================"
-}
-
 def helpMessage() {
   log.info"""
 ====================================
@@ -106,7 +94,7 @@ if (params.host_index) {
 } 
 
 if (params.host !=false && params.host_index != false) {
-	println "Specified both a host fasta file and a pre-compiled index. Will ignore the fasta file!"
+	println "Specified both a host fasta file and a pre-compiled index. Will ignore the index!"
 } else if (params.host == false && params.host_index == false) {
 	exit 1; "Provided neither host genome fasta file (--host) nor a BBMap index location (--host_index); cannot proceed without one of the two."
 }
@@ -233,9 +221,7 @@ Mapping against PhiX and Host genome (default:human). Mapped reads/read-pairs (a
 are discarded.
 */
 
-if (params.host_index != false ) {
-	BBMapIndex = Channel.from(HOST_INDEX)
-} else {
+if (params.host != false ) {
 
 	Channel
 	  .fromPath(params.host)
@@ -260,7 +246,8 @@ if (params.host_index != false ) {
 		bbmap.sh -Xmx${task.memory.toGiga()}g t=${task.cpus} ref=$genome_fa
 		"""
 	}
-
+} else if (params.host_index != false ) {
+        BBMapIndex = Channel.from(HOST_INDEX)
 }
 
 inputQCIndex = inputQC.combine(BBMapIndex)
@@ -433,7 +420,7 @@ process runSpadesBackmap {
 	outdepth = id + ".depth.txt"
 	"""
   	bbwrap.sh -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$spadescontigs t=${task.cpus} out=tmp.sam kfilter=22 subfilter=15 maxindel=80
-  	samtools view -u tmp.sam | samtools sort -m 54G -@ 3 -o tmp_final.bam
+  	samtools view -u tmp.sam | samtools sort -m ${(task.memory.toGiga()-1)/task.cpus}G -@ ${task.cpus} -o tmp_final.bam
   	jgi_summarize_bam_contig_depths --outputDepth $outdepth tmp_final.bam
   	rm tmp*
   	rm -r ref
