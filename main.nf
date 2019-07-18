@@ -61,7 +61,7 @@ log.info "=================================================="
 log.info "LaMeta metgenomic assembly pipeline v${workflow.manifest.version}"
 log.info "Nextflow Version:	$workflow.nextflow.version"
 log.info "Command Line:		$workflow.commandLine"
-log.info "Authors:		Malte Rühlemann & M. Höppner"
+log.info "Authors:		M. Rühlemann & M. Höppner"
 log.info "================================================="
 log.info "Starting at:		$workflow.start"
 
@@ -169,7 +169,7 @@ if (params.checkm_db != false ) {
 		val(url) from CHECKM_DB_URL
 
 		output:
-		file("${checkm_db_path}/*") into Checkm_db
+		file("${checkm_db_path}") into CHECKM_DB
 
 		script:
 		checkm_db_path = "checkm_data"
@@ -189,10 +189,10 @@ process runSetCheckmRoot {
 	tag "ALL"
 
 	input:
-	file(checkm_db_path) from Checkm_db
+	file(checkm_db_path) from CHECKM_DB
 
 	output:
-	file(checkm_db_path) into checkmdb_out
+	file(checkm_db_path) into (checkmdb_out, checkmdb_out_refine)
 
 	script:
 	
@@ -592,7 +592,7 @@ process runSpadesRefine {
 	mv ${id}_cleanbin_*.fasta bins
 	chd=\$(readlink -f ${db_path})
 	printf "\$chd\\n\$chd\\n" | checkm data setRoot
-	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins ${db_path}
+	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins checkm_out
 	head -n 1 ${id}.checkm.out > $refinedcontigsout/${id}.checkm.out
 	for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${id}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${id}.checkm.out >> ${refinedcontigsout}/${id}.checkm.out; done
 	 mv ${id}.refined* $refinedcontigsout
@@ -780,6 +780,8 @@ process runMegahitRefine {
 
 	input:
 	set group, file(megahitcontigs), file(megahitlog), file(markergenes), file(binmaxbin), file(binmaxbin40), file(binmetabat) from MegahitAllbins
+        file(db_path) from checkmdb_out_refine
+
 
 	output:
 	set group, file(refinedcontigsout) into MegahitRefinedContigs
@@ -797,7 +799,9 @@ process runMegahitRefine {
 	mkdir bins
 	mkdir -p $refinedcontigsout/bins
 	mv ${group}_cleanbin_*.fasta bins
-	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${group}.checkm.out bins checkm
+	chd=\$(readlink -f ${db_path})
+        printf "\$chd\\n\$chd\\n" | checkm data setRoot
+	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${group}.checkm.out bins checkm_out
 	head -n 1 ${group}.checkm.out > $refinedcontigsout/${group}.checkm.out
 	for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${group}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${group}.checkm.out >> $refinedcontigsout/${group}.checkm.out; done 
 	mv ${group}.refined* $refinedcontigsout
