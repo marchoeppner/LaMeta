@@ -84,6 +84,18 @@ Your cluster:
 
 `your_cluster.config` This file should contain information about your cluster queue. Please see [here](https://www.nextflow.io/docs/latest/executor.html) for some information on how to do that or have a look at the other included files. 
 
+An important section in your profile is, in addition to specifying your queuing system, to tell Nextflow how many cores and RAM each node has and what the maximum allowed walltime for a job should be. 
+
+```
+params {
+  max_memory = 128.GB
+  max_cpus = 16
+  max_time = 240.h
+}
+```
+
+In this example, each compute note has 128GB of RAM, 16 CPU cores and jobs are allowed to run for 240 hours before they are terminated. 
+
 #### Adding your own profile
 
 Once you have your own cluster config file setup and included under `/conf`, you should add your own execution profile to `nextflow.config`.

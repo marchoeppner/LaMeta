@@ -139,36 +139,43 @@ Channel
    .into { inputGTDB; inputGTDBMarkers }
 
 // CheckM database - use existing or retrieve on the fly
-if (params.checkm_db != false ) {
-	CHECKM_DB = Channel.fromPath(params.checkm_db)
-} else {
+if (singurlaty.enabled == false && docker.enabled == false) }
 
-	CHECKM_DB_URL = Channel.from(params.checkm_db_url)
+	if (params.checkm_db != false ) {
+		CHECKM_DB = Channel.fromPath(params.checkm_db)
+	} else {
 
-	// make this a local process for cases where executing nodes may not have access to the web
-	process getCheckMDB {
+		CHECKM_DB_URL = Channel.from(params.checkm_db_url)
 
-		executor = "local"
+		// make this a local process for cases where executing nodes may not have access to the web
+		process getCheckMDB {
 
-		tag "ALL"
-		publishDir "${OUTDIR}/refs", mode: 'copy'
+			executor = "local"
 
-		input:
-		val(url) from CHECKM_DB_URL
+			tag "ALL"
+			publishDir "${OUTDIR}/refs", mode: 'copy'
 
-		output:
-		file("${checkm_db_path}") into CHECKM_DB
+			input:
+			val(url) from CHECKM_DB_URL
 
-		script:
-		checkm_db_path = "checkm_data"
+			output:
+			file("${checkm_db_path}") into CHECKM_DB
 
-		"""
-			wget -P $checkm_db_path $url
-			cd $checkm_db_path
-			tar -xvf checkm_data_2015_01_16.tar.gz
-			rm *.tar.gz
-		"""
+			script:	
+			checkm_db_path = "checkm_data"
+
+			"""
+				mkdir -p checkm_data 
+				cd checkm_data
+				wget $url
+				tar xzf checkm_data_2015_01_16.tar.gz
+				rm *.tar.gz
+			"""
+		}
 	}
+} else  {
+	// this is where the data lives inside the containter
+	CHECKM_DB = Channel.fromPath("/db/checkm_data")
 }
 
 // set checkm db location
@@ -186,7 +193,7 @@ process runSetCheckmRoot {
 	
 
 	"""
-		printf "${checkm_db_path}\n${checkm_db_path}\n" | checkm data setRoot
+		printf "checkm_data\ncheckm_data\n" | checkm data setRoot
 	"""
 
 }
@@ -417,10 +424,11 @@ process runSpadesBackmap {
 	set id, file(outdepth) into outputSpadesBackmap
 
 	script:
+	def avail_mem = "${(task.memory.toBytes()-1000000000)/task.cpus}"
 	outdepth = id + ".depth.txt"
 	"""
   	bbwrap.sh -Xmx60g in=$left_clean,$unpaired_clean in2=$right_clean,NULL ref=$spadescontigs t=${task.cpus} out=tmp.sam kfilter=22 subfilter=15 maxindel=80
-  	samtools view -u tmp.sam | samtools sort -m ${(task.memory.toGiga()-1)/task.cpus}G -@ ${task.cpus} -o tmp_final.bam
+  	samtools view -u tmp.sam | samtools sort -m ${avail_mem} -@ ${task.cpus} -o tmp_final.bam
   	jgi_summarize_bam_contig_depths --outputDepth $outdepth tmp_final.bam
   	rm tmp*
   	rm -r ref
@@ -577,7 +585,7 @@ process runSpadesRefine {
   	mkdir -p bins
   	mkdir -p $refinedcontigsout/bins
 	mv ${id}_cleanbin_*.fasta bins
-	chd=\$(readlink -f ${db_path})
+	chd=\$(readlink -f $db_path)
 	printf "\$chd\\n\$chd\\n" | checkm data setRoot
 	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins checkm_out
 	head -n 1 ${id}.checkm.out > $refinedcontigsout/${id}.checkm.out
