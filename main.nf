@@ -50,6 +50,9 @@ log.info "LaMeta metgenomic assembly pipeline v${workflow.manifest.version}"
 log.info "Nextflow Version:	$workflow.nextflow.version"
 log.info "Command Line:		$workflow.commandLine"
 log.info "Authors:		M. Rühlemann & M. Höppner"
+if (workflow.containerEngine) {
+	log.info "Container engine: 	${workflow.containerEngine}"
+}
 log.info "================================================="
 log.info "Starting at:		$workflow.start"
 
@@ -139,8 +142,11 @@ Channel
    .into { inputGTDB; inputGTDBMarkers }
 
 // CheckM database - use existing or retrieve on the fly
-if (singurlaty.enabled == false && docker.enabled == false) }
-
+// or use the one built into the docker container.
+if ( workflow.containerEngine != null) {
+        checkmdb_out = Channel.fromPath("/db/checkm_data")
+	checkmdb_out_refine = Channel.fromPath("/db/checkm_data")
+} else {
 	if (params.checkm_db != false ) {
 		CHECKM_DB = Channel.fromPath(params.checkm_db)
 	} else {
@@ -159,7 +165,7 @@ if (singurlaty.enabled == false && docker.enabled == false) }
 			val(url) from CHECKM_DB_URL
 
 			output:
-			file("${checkm_db_path}") into CHECKM_DB
+			file(checkm_db_path) into CHECKM_DB
 
 			script:	
 			checkm_db_path = "checkm_data"
@@ -173,29 +179,26 @@ if (singurlaty.enabled == false && docker.enabled == false) }
 			"""
 		}
 	}
-} else  {
-	// this is where the data lives inside the containter
-	CHECKM_DB = Channel.fromPath("/db/checkm_data")
-}
 
-// set checkm db location
-process runSetCheckmRoot {
+	// set checkm db location
+	process runSetCheckmRoot {
 
-	tag "ALL"
+        	tag "ALL"
 
-	input:
-	file(checkm_db_path) from CHECKM_DB
+	        input:
+	        file(checkm_db_path) from CHECKM_DB
 
-	output:
-	file(checkm_db_path) into (checkmdb_out, checkmdb_out_refine)
+        	output:
+	        file(checkm_db_path) into (checkmdb_out, checkmdb_out_refine)
 
-	script:
-	
+        	script:
 
-	"""
-		printf "checkm_data\ncheckm_data\n" | checkm data setRoot
-	"""
 
+	        """
+                	printf "${checkm_db_path}\n${checkm_db_path}\n" | checkm data setRoot
+        	"""
+
+	}
 }
 
 // Read fastq files as paired - complain if nothing is found
@@ -585,8 +588,6 @@ process runSpadesRefine {
   	mkdir -p bins
   	mkdir -p $refinedcontigsout/bins
 	mv ${id}_cleanbin_*.fasta bins
-	chd=\$(readlink -f $db_path)
-	printf "\$chd\\n\$chd\\n" | checkm data setRoot
 	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${id}.checkm.out bins checkm_out
 	head -n 1 ${id}.checkm.out > $refinedcontigsout/${id}.checkm.out
 	for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${id}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${id}.checkm.out >> ${refinedcontigsout}/${id}.checkm.out; done
@@ -794,8 +795,6 @@ process runMegahitRefine {
 	mkdir bins
 	mkdir -p $refinedcontigsout/bins
 	mv ${group}_cleanbin_*.fasta bins
-	chd=\$(readlink -f ${db_path})
-        printf "\$chd\\n\$chd\\n" | checkm data setRoot
 	checkm lineage_wf -t ${task.cpus} -x fasta --nt --tab_table -f ${group}.checkm.out bins checkm_out
 	head -n 1 ${group}.checkm.out > $refinedcontigsout/${group}.checkm.out
 	for good in \$(awk -F '\t' '{if(\$12 > 50 && \$1!="Bin Id") print \$1}' ${group}.checkm.out); do mv bins/\$good.fasta $refinedcontigsout/bins; grep -w \$good ${group}.checkm.out >> $refinedcontigsout/${group}.checkm.out; done 
