@@ -1,5 +1,5 @@
-![](images/ikmb_bfx_logo.png)
+![](../images/ikmb_bfx_logo.png)
 
 # Pipeline overview
 
-![](images/LaMeta_dag.png)
+![](../images/LaMeta_dag.png)
