@@ -82,7 +82,7 @@ Your cluster:
 
 `your_cluster.config` This file should contain information about your cluster queue. Please see [here](https://www.nextflow.io/docs/latest/executor.html) 
 for some information on how to do that or have a look at the other included files. You will need to specify how jobs are to be disributed - either using a
-queuing system like Slurm, LSF or SGE - or maybe you want to run this on e Amazon cloud (AWS, which Nextflow supports but has not been tested by us for 
+queuing system like Slurm, LSF or SGE - or maybe you want to run this on the Amazon cloud (AWS, which Nextflow supports but has not been tested by us for 
 this pipeline). 
 
 An important section in your profile is, in addition to specifying your queuing system, to tell Nextflow how many cores and RAM each node has and what 
