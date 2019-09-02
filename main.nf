@@ -88,28 +88,26 @@ if (params.host) {
 	HOST = file(params.host)
 	if ( !HOST.exists() ) exit 1; "Unable to find host reference sequence (--host)"
 }	
-
 if (params.host_index) {
 	HOST_INDEX = file(params.host_index)
 	if (!HOST_INDEX.exists() ) exit 1; "Could not located the BBMap index (--host_index)"
 	HOST_INDEX_REF = file(params.host_index + "/ref")
 	if (!HOST_INDEX_REF.exists() ) exit 1; "The specified host index directory does not contain the BBMap ref folder (--host_index)"
 } 
-
 if (params.host !=false && params.host_index != false) {
 	println "Specified both a host fasta file and a pre-compiled index. Will ignore the index!"
 } else if (params.host == false && params.host_index == false) {
 	exit 1; "Provided neither host genome fasta file (--host) nor a BBMap index location (--host_index); cannot proceed without one of the two."
 }
 
-if ( params.gtdb != false ) {
+if (params.gtdb) {
 	GTDB_FILE = file(params.gtdb)
 	if (!GTDB_FILE.exists()) exit 1; "Could not find the specified GTDB-TK Database (--gtdb)"
 } else {
-	exit 1, "Must prodvide the path to the GTDB-TK Database (--gtdb)"
+	exit 1; "Must prodvide the path to the GTDB-TK Database (--gtdb)"
 }
 
-if (params.checkm_db != false ) {
+if (params.checkm_db) {
 	if (!file(params.checkm_db).exists() ) exit 1; "Could not find the CheckM database (--checkm_db)"
 }
 	
@@ -158,7 +156,6 @@ if ( workflow.containerEngine != null) {
 
 			executor = "local"
 
-			tag "ALL"
 			publishDir "${OUTDIR}/refs", mode: 'copy'
 
 			input:
@@ -183,7 +180,6 @@ if ( workflow.containerEngine != null) {
 	// set checkm db location
 	process runSetCheckmRoot {
 
-        	tag "ALL"
 
 	        input:
 	        file(checkm_db_path) from CHECKM_DB
@@ -212,7 +208,6 @@ inputParseGroupPre.map{id, f1, f2 -> id}.set{ inputParseGroup }
 // Parse the group file and get the relevant metadata
 process parseGroup {
 
-	tag "${id}"
 
 	input:
 	val id from inputParseGroup
@@ -231,7 +226,7 @@ Mapping against PhiX and Host genome (default:human). Mapped reads/read-pairs (a
 are discarded.
 */
 
-if (params.host != false ) {
+if (params.host) {
 
 	Channel
 	  .fromPath(params.host)
@@ -240,7 +235,6 @@ if (params.host != false ) {
 	// Create a BBMAP compatible index structure and pass to QC stage
 	process runBuildIndex {
 
-		tag "All"
 		 publishDir "${OUTDIR}/Host/", mode: 'copy'
 
 		input:
@@ -256,7 +250,7 @@ if (params.host != false ) {
 		bbmap.sh -Xmx${task.memory.toGiga()}g t=${task.cpus} ref=$genome_fa
 		"""
 	}
-} else if (params.host_index != false ) {
+} else if (params.host_index) {
         BBMapIndex = Channel.from(HOST_INDEX)
 }
 
@@ -266,7 +260,6 @@ process runQC {
 
 	// scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Decon", mode: 'copy'
 
 	input:
@@ -335,7 +328,6 @@ process runCoAssembly {
 
 	// scratch true
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}", mode: 'copy'
 
 	input:
@@ -387,7 +379,6 @@ process runSpades {
 
 	scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
 
 	input:
@@ -417,7 +408,6 @@ process runSpadesBackmap {
 
 	scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Spades", mode: 'copy'
 
 	input:
@@ -447,7 +437,6 @@ process runMaxbin {
 
 	scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Maxbin", mode: 'copy'
 
 	input:
@@ -482,7 +471,6 @@ process runMaxbin40 {
 
 	scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Maxbin40", mode: 'copy'
 
 	input:
@@ -517,7 +505,6 @@ process runMetabat {
 
 	scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/Metabat", mode: 'copy'
 
 	input:
@@ -539,7 +526,6 @@ process runSpadesMarkergenes {
 
 	// scratch true
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/SpadesMarkergenes", mode: 'copy'
 	
 	input:
@@ -564,7 +550,6 @@ inputSpadesRefine.join(outputSpadesMarkergenes).join(outputMaxbinSamples).join(o
 
 process runSpadesRefine {
 
-	tag "${id}"
 	publishDir "${OUTDIR}/Samples/${id}/ContigsRefined", mode: 'copy'
 
 	input:
@@ -605,7 +590,6 @@ process runCoassemblyBackmap {
 
 	scratch true
 
-	tag "${group}-${id}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/Backmap", mode: 'copy'
 
 	input:
@@ -634,7 +618,6 @@ outMegahitBackmap.groupTuple().set { inputCollapseBams }
 
 process runCollapseBams {
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/Backmap", mode: 'copy'
 
 	input:
@@ -669,7 +652,6 @@ process runMegahitMaxbin {
 
 	scratch true
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin", mode: 'copy'
 
 	input:
@@ -693,7 +675,6 @@ process runMegahitMaxbin40 {
 
 	scratch true  
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/Maxbin40", mode: 'copy'
 
 	input:
@@ -723,7 +704,6 @@ process runMegahitMetabat {
 
 	scratch true
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/Metabat", mode: 'copy'
 
 	input:
@@ -745,7 +725,6 @@ process runMegahitMarkergenes {
 
 	scratch true
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/MegahitMarkergenes", mode: 'copy'
 
 	input:
@@ -771,7 +750,6 @@ inputMegahitRefine.join(outputMegahitMarkergenes).join(outputMegahitMaxbin).join
 
 process runMegahitRefine {
 
-	tag "${group}"
 	publishDir "${OUTDIR}/CoAssembly/${group}/ContigsRefined", mode: 'copy'
 
 	input:
@@ -804,7 +782,6 @@ process runMegahitRefine {
 
 process runMultiQCLibrary {
 
-	tag "ALL"
 	publishDir "${OUTDIR}/MultiQC/Library", mode: 'copy'
 
 	when:
