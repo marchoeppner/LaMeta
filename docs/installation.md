@@ -133,9 +133,9 @@ from the command line when starting the pipeline (params.some_parameter becomes 
 
 #### GTDB-TK Reference DB
 
-Please download the database [here](https://data.ace.uq.edu.au/public/gtdbtk/release_86/gtdbtk.r86_v2_data.tar.gz)
+Please download the database [here](https://data.ace.uq.edu.au/public/gtdbtk/release_89/89.0/gtdbtk_r89_data.tar.gz)
 
-Once the database has been downloaded and de-compressed (tar -xvf gtdbtk.r86_v2_data.tar.gz), add the full path to the directory to your config file 
+Once the database has been downloaded and de-compressed (tar -xvf gtdbtk.r89_data.tar.gz), add the full path to the directory to your config file 
 
 `params.gtdb = /path/to/gtdb/`
 
