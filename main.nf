@@ -208,6 +208,7 @@ inputParseGroupPre.map{id, f1, f2 -> id}.set{ inputParseGroup }
 // Parse the group file and get the relevant metadata
 process parseGroup {
 
+	executor = 'local'
 
 	input:
 	val id from inputParseGroup
